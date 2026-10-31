@@ -1,6 +1,17 @@
 name: custom code test
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'v2rayN/ServiceLib/**'
+      - 'v2rayN/ServiceLib.UdpTest/**'
+      - 'v2rayN/ServiceLib.Tests/**'
+      - 'v2rayN/Directory.Build.*'
+      - 'v2rayN/Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - custom/main
@@ -15,6 +26,10 @@ on:
 permissions:
   contents: read
 
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,8 +40,8 @@ jobs:
         submodules: recursive
         fetch-depth: 0
     - name: Setup .NET
-      uses: actions/setup-dotnet@v6.0.0
+      uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: 10.0.1xx
+        dotnet-version: '10.x'
     - name: Run ServiceLib tests
-      run: dotnet test ./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj -c Release
+      run: dotnet test --project ./v2rayN/ServiceLib.Tests -c Release -- --report-trx

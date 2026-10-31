@@ -1,16 +1,16 @@
 using AwesomeAssertions;
-using Xunit;
+using TUnit.Core;
 
 namespace ServiceLib.Tests.Common;
 
 public class NetworkRecoveryEligibilityTests
 {
-    [Theory]
-    [InlineData(0, 0, false)]
-    [InlineData(1, 0, false)]
-    [InlineData(0, 1, false)]
-    [InlineData(1, 1, true)]
-    [InlineData(3, 20, true)]
+    [Test]
+    [Arguments(0, 0, false)]
+    [Arguments(1, 0, false)]
+    [Arguments(0, 1, false)]
+    [Arguments(1, 1, true)]
+    [Arguments(3, 20, true)]
     public void CanRun_RequiresSubscriptionsAndProfiles(
         int subscriptionCount,
         int profileCount,

@@ -1,4 +1,3 @@
-using System.Reactive.Disposables;
 using System.Windows.Controls;
 
 namespace v2rayN.Views;
@@ -37,11 +36,12 @@ public partial class AddServerWindow
         this.WhenActivated(disposables =>
         {
             this.WhenAnyValue(v => v.ViewModel.SelectedSource)
-                .WhereNotNull()
+                .KeepNotNull()
                 .Subscribe(InitializeData)
                 .DisposeWith(disposables);
 
-            var configTypeBindings = new SerialDisposable().DisposeWith(disposables);
+            var configTypeBindings = new SingleReplaceableDisposable();
+            configTypeBindings.DisposeWith(disposables);
 
             this.Bind(ViewModel, vm => vm.CoreType, v => v.cmbCoreType.Text).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.SelectedSource.Remarks, v => v.txtRemarks.Text).DisposeWith(disposables);
@@ -51,8 +51,8 @@ public partial class AddServerWindow
             this.WhenAnyValue(v => v.ViewModel.SelectedSource.ConfigType)
                 .Subscribe(configType =>
                 {
-                    var currentTypeDisposables = new CompositeDisposable();
-                    configTypeBindings.Disposable = currentTypeDisposables;
+                    var currentTypeDisposables = new MultipleDisposable();
+                    configTypeBindings.Create(currentTypeDisposables);
 
                     switch (configType)
                     {
@@ -124,6 +124,7 @@ public partial class AddServerWindow
                             this.Bind(ViewModel, vm => vm.WgReserved, v => v.txtPath9.Text).DisposeWith(currentTypeDisposables);
                             this.Bind(ViewModel, vm => vm.WgInterfaceAddress, v => v.txtRequestHost9.Text).DisposeWith(currentTypeDisposables);
                             this.Bind(ViewModel, vm => vm.WgMtu, v => v.txtShortId9.Text).DisposeWith(currentTypeDisposables);
+                            this.Bind(ViewModel, vm => vm.WgDns, v => v.txtDns.Text).DisposeWith(currentTypeDisposables);
                             break;
 
                         case EConfigType.Anytls:
@@ -137,6 +138,13 @@ public partial class AddServerWindow
                             this.Bind(ViewModel, vm => vm.CongestionControl, v => v.cmbCongestionControl12.Text).DisposeWith(currentTypeDisposables);
                             this.Bind(ViewModel, vm => vm.InsecureConcurrency, v => v.txtInsecureConcurrency12.Text).DisposeWith(currentTypeDisposables);
                             this.Bind(ViewModel, vm => vm.Uot, v => v.togUotEnabled12.IsChecked).DisposeWith(currentTypeDisposables);
+                            break;
+
+                        case EConfigType.MASQUE:
+                            this.Bind(ViewModel, vm => vm.SelectedSource.Username, v => v.txtId14.Text).DisposeWith(currentTypeDisposables);
+                            this.Bind(ViewModel, vm => vm.SelectedSource.Password, v => v.txtSecurity14.Text).DisposeWith(currentTypeDisposables);
+                            this.Bind(ViewModel, vm => vm.MasquePath, v => v.txtPath14.Text).DisposeWith(currentTypeDisposables);
+                            this.Bind(ViewModel, vm => vm.MasqueHeaders, v => v.txtHeaders14.Text).DisposeWith(currentTypeDisposables);
                             break;
                     }
                 })
@@ -282,6 +290,14 @@ public partial class AddServerWindow
                 togAllowInsecure.IsEnabled = false;
 
                 cmbCongestionControl12.ItemsSource = Global.NaiveCongestionControls;
+                break;
+
+            case EConfigType.MASQUE:
+                gridMasque.Visibility = Visibility.Visible;
+                sepa2.Visibility = Visibility.Collapsed;
+                gridTransport.Visibility = Visibility.Collapsed;
+                cmbFingerprint.IsEnabled = false;
+                cmbAlpn.IsEnabled = false;
                 break;
         }
         cmbStreamSecurity.ItemsSource = lstStreamSecurity;

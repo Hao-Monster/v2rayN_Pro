@@ -1,17 +1,17 @@
 namespace ServiceLib.Models.Dto;
 
 [Serializable]
-public class ClashProxyModel : ReactiveObject
+public partial class ClashProxyModel : ReactiveObject
 {
-    public string? Name { get; set; }
+    public string Name { get; set; }
 
-    public string? Type { get; set; }
+    public string Type { get; set; }
 
     public string? Now { get; set; }
 
-    [Reactive] public int Delay { get; set; }
+    [Reactive] public partial int Delay { get; set; }
 
-    [Reactive] public string? DelayName { get; set; }
+    [Reactive] public partial string? DelayName { get; set; }
 
     public bool IsActive { get; set; }
 }

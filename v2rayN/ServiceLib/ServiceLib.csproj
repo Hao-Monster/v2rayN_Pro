@@ -10,7 +10,10 @@
 		<PackageReference Include="ReactiveUI">
 			<TreatAsUsed>true</TreatAsUsed>
 		</PackageReference>
-		<PackageReference Include="ReactiveUI.Fody" />
+		<PackageReference Include="ReactiveUI.SourceGenerators">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="sqlite-net-e" />
 		<PackageReference Include="Repobot.SQLite.Unofficial" />
 		<PackageReference Include="NLog" />
@@ -59,6 +62,9 @@
 			<DesignTime>True</DesignTime>
 			<AutoGen>True</AutoGen>
 		</Compile>
+		<EmbeddedResource Update="Resx\ResUI.az.resx">
+			<Generator>PublicResXFileCodeGenerator</Generator>
+		</EmbeddedResource>
 		<EmbeddedResource Update="Resx\ResUI.fa.resx">
 			<SubType>Designer</SubType>
 			<Generator>PublicResXFileCodeGenerator</Generator>

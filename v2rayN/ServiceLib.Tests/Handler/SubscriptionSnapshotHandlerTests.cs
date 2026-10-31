@@ -1,11 +1,11 @@
 using AwesomeAssertions;
-using Xunit;
+using TUnit.Core;
 
 namespace ServiceLib.Tests.Handler;
 
 public class SubscriptionSnapshotHandlerTests
 {
-    [Fact]
+    [Test]
     public void GetSnapshotFileName_IsDeterministicAndPathSafe()
     {
         const string hostileSubscriptionId = "../subscription/../../escape";
@@ -18,7 +18,7 @@ public class SubscriptionSnapshotHandlerTests
         Path.GetFileName(first).Should().Be(first);
     }
 
-    [Fact]
+    [Test]
     public void SnapshotDto_RoundTripsThroughApplicationJsonSerializer()
     {
         var snapshot = new SubscriptionSnapshot

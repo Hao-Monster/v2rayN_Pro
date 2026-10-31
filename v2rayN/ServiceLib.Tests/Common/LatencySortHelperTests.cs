@@ -1,11 +1,11 @@
 using AwesomeAssertions;
-using Xunit;
+using TUnit.Core;
 
 namespace ServiceLib.Tests.Common;
 
 public class LatencySortHelperTests
 {
-    [Fact]
+    [Test]
     public void OrderAscending_PutsFailedLatencyLast()
     {
         int[] delays = [220, -1, 80, 500, -1, 0];
@@ -15,12 +15,12 @@ public class LatencySortHelperTests
         result.Should().Equal(80, 220, 500, 0, -1, -1);
     }
 
-    [Theory]
-    [InlineData(true, 200, 100, true)]
-    [InlineData(true, 100, 200, false)]
-    [InlineData(true, -1, 300, true)]
-    [InlineData(false, -1, 300, true)]
-    [InlineData(false, -1, -1, false)]
+    [Test]
+    [Arguments(true, 200, 100, true)]
+    [Arguments(true, 100, 200, false)]
+    [Arguments(true, -1, 300, true)]
+    [Arguments(false, -1, 300, true)]
+    [Arguments(false, -1, -1, false)]
     public void ShouldSwitchToCandidate_UsesCurrentAvailabilityAndLatency(
         bool currentExists,
         int currentDelay,

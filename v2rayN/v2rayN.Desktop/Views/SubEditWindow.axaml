@@ -80,7 +80,7 @@
                     Grid.ColumnSpan="4"
                     IsVisible="False"
                     ColumnDefinitions="110,*,Auto"
-                    RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                    RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Row="0" Margin="4" VerticalAlignment="Center" Text="别名" />
                     <TextBox x:Name="txtRemarks" Grid.Row="0" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
 
@@ -114,8 +114,12 @@
                     <TextBlock Grid.Row="8" Margin="4" VerticalAlignment="Center" Text="自定义 Socks 端口" />
                     <TextBox x:Name="txtPreSocksPort" Grid.Row="8" Grid.Column="1" Margin="4" />
 
-                    <TextBlock Grid.Row="9" Margin="4" VerticalAlignment="Center" Text="备注" />
-                    <TextBox x:Name="txtMemo" Grid.Row="9" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="9" Margin="4" Text="{x:Static resx:ResUI.LvRequestHeaders}" />
+                    <TextBox x:Name="txtRequestHeaders" Grid.Row="9" Grid.Column="1" Margin="4" AcceptsReturn="True" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="10" Margin="4" VerticalAlignment="Center" Text="备注" />
+                    <TextBox x:Name="txtMemo" Grid.Row="10" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="11" Margin="4" Text="{x:Static resx:ResUI.LvCustomCoreType}" />
+                    <ComboBox x:Name="cmbCustomCoreType" Grid.Row="11" Grid.Column="1" Margin="4" />
                 </Grid>
             </Grid>
         </ScrollViewer>

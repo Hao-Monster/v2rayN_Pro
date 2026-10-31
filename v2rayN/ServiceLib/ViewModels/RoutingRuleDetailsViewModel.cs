@@ -1,6 +1,6 @@
 namespace ServiceLib.ViewModels;
 
-public class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
+public partial class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
 {
     public event EventHandler? RequestClose;
 
@@ -8,25 +8,40 @@ public class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
     public IList<string> InboundTagItems { get; set; }
 
     [Reactive]
-    public RulesItem SelectedSource { get; set; }
+    public partial RulesItem SelectedSource { get; set; }
 
     [Reactive]
-    public string Domain { get; set; }
+    public partial string Domain { get; set; }
 
     [Reactive]
-    public string IP { get; set; }
+    public partial string IP { get; set; }
 
     [Reactive]
-    public string Process { get; set; }
+    public partial string Process { get; set; }
 
     [Reactive]
-    public string? RuleType { get; set; }
+    public partial string? RuleType { get; set; }
 
     [Reactive]
-    public bool AutoSort { get; set; }
+    public partial bool AutoSort { get; set; }
 
-    public ReactiveCommand<Unit, Unit> SelectProfileCmd { get; }
-    public ReactiveCommand<Unit, Unit> SaveCmd { get; }
+    [Reactive]
+    public partial string OutboundTag { get; set; }
+
+    [Reactive]
+    public partial string Remarks { get; set; }
+
+    [Reactive]
+    public partial string Port { get; set; }
+
+    [Reactive]
+    public partial string Network { get; set; }
+
+    [Reactive]
+    public partial bool Enabled { get; set; }
+
+    public ReactiveCommand<RxVoid, RxVoid> SelectProfileCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> SaveCmd { get; }
 
     public RoutingRuleDetailsViewModel(RulesItem rulesItem)
     {
@@ -57,6 +72,11 @@ public class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
         IP = Utils.List2String(SelectedSource.Ip, true);
         Process = Utils.List2String(SelectedSource.Process, true);
         RuleType = SelectedSource.RuleType?.ToString();
+        OutboundTag = SelectedSource.OutboundTag;
+        Remarks = SelectedSource.Remarks;
+        Port = SelectedSource.Port;
+        Network = SelectedSource.Network;
+        Enabled = SelectedSource.Enabled;
     }
 
     private async Task SaveRulesAsync()
@@ -80,6 +100,11 @@ public class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
         SelectedSource.Protocol = ProtocolItems?.ToList();
         SelectedSource.InboundTag = InboundTagItems?.ToList();
         SelectedSource.RuleType = RuleType.IsNullOrEmpty() ? null : Enum.Parse<ERuleType>(RuleType);
+        SelectedSource.OutboundTag = OutboundTag;
+        SelectedSource.Remarks = Remarks;
+        SelectedSource.Port = Port;
+        SelectedSource.Network = Network;
+        SelectedSource.Enabled = Enabled;
 
         var hasRule = SelectedSource.Domain?.Count > 0
           || SelectedSource.Ip?.Count > 0
@@ -110,8 +135,7 @@ public class RoutingRuleDetailsViewModel : MyReactiveObject, ICloseable
         var profileItem = await profileSelectViewModel.GetProfileItem();
         if (profileItem != null)
         {
-            SelectedSource.OutboundTag = profileItem.Remarks;
-            SelectedSource = JsonUtils.DeepCopy(SelectedSource);
+            OutboundTag = profileItem.Remarks;
         }
     }
 }

@@ -1,64 +1,64 @@
 namespace ServiceLib.ViewModels;
 
-public class SubscriptionInfoViewModel : MyReactiveObject
+public partial class SubscriptionInfoViewModel : MyReactiveObject
 {
     [Reactive]
-    public string SubscriptionName { get; set; } = "订阅信息";
+    public partial string SubscriptionName { get; set; } = "订阅信息";
 
     [Reactive]
-    public string Announcement { get; set; } = "选择一个订阅分组以查看订阅信息";
+    public partial string Announcement { get; set; } = "选择一个订阅分组以查看订阅信息";
 
     [Reactive]
-    public string RemainingTraffic { get; set; } = "-";
+    public partial string RemainingTraffic { get; set; } = "-";
 
     [Reactive]
-    public string TotalTraffic { get; set; } = "-";
+    public partial string TotalTraffic { get; set; } = "-";
 
     [Reactive]
-    public string UsedTraffic { get; set; } = "-";
+    public partial string UsedTraffic { get; set; } = "-";
 
     [Reactive]
-    public string ExpireDate { get; set; } = "-";
+    public partial string ExpireDate { get; set; } = "-";
 
     [Reactive]
-    public string LastUpdated { get; set; } = "尚未更新";
+    public partial string LastUpdated { get; set; } = "尚未更新";
 
     [Reactive]
-    public bool HasSubscription { get; set; }
+    public partial bool HasSubscription { get; set; }
 
     [Reactive]
-    public string SupportUrl { get; set; } = string.Empty;
+    public partial string SupportUrl { get; set; } = string.Empty;
 
     [Reactive]
-    public bool HasSupportUrl { get; set; }
+    public partial bool HasSupportUrl { get; set; }
 
     [Reactive]
-    public string NetworkStatusText { get; set; } = "正在检查当前网络";
+    public partial string NetworkStatusText { get; set; } = "正在检查当前网络";
 
     [Reactive]
-    public string NetworkStatusDetail { get; set; } = string.Empty;
+    public partial string NetworkStatusDetail { get; set; } = string.Empty;
 
     [Reactive]
-    public string NetworkStatusColor { get; set; } = "#F9A825";
+    public partial string NetworkStatusColor { get; set; } = "#F9A825";
 
     [Reactive]
-    public bool IsNetworkRepairing { get; set; }
+    public partial bool IsNetworkRepairing { get; set; }
 
     [Reactive]
-    public bool CanContactSupport { get; set; }
+    public partial bool CanContactSupport { get; set; }
 
     [Reactive]
-    public string ActiveNodeName { get; set; } = "未选择节点";
+    public partial string ActiveNodeName { get; set; } = "未选择节点";
 
     [Reactive]
-    public string CurrentDelay { get; set; } = "未测速";
+    public partial string CurrentDelay { get; set; } = "未测速";
 
     [Reactive]
-    public string SystemProxyStatus { get; set; } = "未开启";
+    public partial string SystemProxyStatus { get; set; } = "未开启";
 
-    public ReactiveCommand<Unit, Unit> OpenSupportCmd { get; }
-    public ReactiveCommand<Unit, Unit> OneClickNetworkSetupCmd { get; }
-    public ReactiveCommand<Unit, Unit> ContactSupportCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OpenSupportCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OneClickNetworkSetupCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ContactSupportCmd { get; }
 
     public SubscriptionInfoViewModel()
     {

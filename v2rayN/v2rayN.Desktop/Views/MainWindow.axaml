@@ -19,6 +19,15 @@
     ShowInTaskbar="True"
     WindowStartupLocation="CenterScreen"
     mc:Ignorable="d">
+    <Window.Styles>
+        <!-- Keep the log selected; hide only the strip when it has no other tabs. -->
+        <Style Selector="TabControl.logPane /template/ ItemsPresenter#PART_ItemsPresenter">
+            <Setter Property="IsVisible" Value="{Binding ShowClashUI}" />
+        </Style>
+        <Style Selector="TabControl.logPane /template/ Border#PART_BorderSeparator">
+            <Setter Property="IsVisible" Value="{Binding ShowClashUI}" />
+        </Style>
+    </Window.Styles>
     <dialogHost:DialogHost CloseOnClickAway="True" DisableOpeningAnimation="True">
         <DockPanel>
             <DockPanel Margin="{StaticResource Margin8}" DockPanel.Dock="Top">
@@ -54,9 +63,11 @@
                             Header="{x:Static resx:ResUI.menuAddServerViaScan}"
                             InputGesture="Ctrl+S" />
                         <MenuItem x:Name="menuAddServerViaImage" Header="{x:Static resx:ResUI.menuAddServerViaImage}" />
+                        <Separator />
                         <MenuItem x:Name="menuAddCustomServer" Header="{x:Static resx:ResUI.menuAddCustomServer}" />
                         <MenuItem x:Name="menuAddPolicyGroupServer" Header="{x:Static resx:ResUI.menuAddPolicyGroupServer}" />
                         <MenuItem x:Name="menuAddProxyChainServer" Header="{x:Static resx:ResUI.menuAddProxyChainServer}" />
+                        <MenuItem x:Name="menuAddCustomOutboundServer" Header="{x:Static resx:ResUI.menuAddCustomOutboundServer}" />
                         <Separator />
                         <MenuItem x:Name="menuAddVmessServer" Header="{x:Static resx:ResUI.menuAddVmessServer}" />
                         <MenuItem x:Name="menuAddVlessServer" Header="{x:Static resx:ResUI.menuAddVlessServer}" />
@@ -64,6 +75,7 @@
                         <MenuItem x:Name="menuAddTrojanServer" Header="{x:Static resx:ResUI.menuAddTrojanServer}" />
                         <MenuItem x:Name="menuAddHysteria2Server" Header="{x:Static resx:ResUI.menuAddHysteria2Server}" />
                         <MenuItem x:Name="menuAddWireguardServer" Header="{x:Static resx:ResUI.menuAddWireguardServer}" />
+                        <MenuItem x:Name="menuAddMasqueServer" Header="{x:Static resx:ResUI.menuAddMasqueServer}" />
                         <MenuItem x:Name="menuAddSocksServer" Header="{x:Static resx:ResUI.menuAddSocksServer}" />
                         <MenuItem x:Name="menuAddHttpServer" Header="{x:Static resx:ResUI.menuAddHttpServer}" />
                         <Separator />

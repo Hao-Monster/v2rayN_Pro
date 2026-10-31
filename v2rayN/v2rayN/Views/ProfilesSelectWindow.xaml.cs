@@ -35,7 +35,7 @@ public partial class ProfilesSelectWindow
             ViewModel.ProfilesFocusInteraction.RegisterHandler(interaction =>
             {
                 lstProfiles.Focus();
-                interaction.SetOutput(Unit.Default);
+                interaction.SetOutput(RxVoid.Default);
             }).DisposeWith(disposables);
         });
 
@@ -149,5 +149,6 @@ public partial class ProfilesSelectWindow
             e.Handled = true;
         }
     }
+
     #endregion Event
 }

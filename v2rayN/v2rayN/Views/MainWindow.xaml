@@ -112,6 +112,7 @@
                                     x:Name="menuAddServerViaImage"
                                     Height="{StaticResource MenuItemHeight}"
                                     Header="{x:Static resx:ResUI.menuAddServerViaImage}" />
+                                <Separator Margin="-40,5" />
                                 <MenuItem
                                     x:Name="menuAddCustomServer"
                                     Height="{StaticResource MenuItemHeight}"
@@ -124,6 +125,10 @@
                                     x:Name="menuAddProxyChainServer"
                                     Height="{StaticResource MenuItemHeight}"
                                     Header="{x:Static resx:ResUI.menuAddProxyChainServer}" />
+                                <MenuItem
+                                    x:Name="menuAddCustomOutboundServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuAddCustomOutboundServer}" />
                                 <Separator Margin="-40,5" />
                                 <MenuItem
                                     x:Name="menuAddVmessServer"
@@ -149,6 +154,10 @@
                                     x:Name="menuAddWireguardServer"
                                     Height="{StaticResource MenuItemHeight}"
                                     Header="{x:Static resx:ResUI.menuAddWireguardServer}" />
+                                <MenuItem
+                                    x:Name="menuAddMasqueServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuAddMasqueServer}" />
                                 <MenuItem
                                     x:Name="menuAddSocksServer"
                                     Height="{StaticResource MenuItemHeight}"

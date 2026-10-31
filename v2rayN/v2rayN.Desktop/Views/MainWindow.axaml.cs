@@ -1,4 +1,3 @@
-using System.Reactive.Disposables;
 using Avalonia.Controls.Notifications;
 using DialogHostAvalonia;
 using v2rayN.Desktop.Base;
@@ -10,7 +9,7 @@ namespace v2rayN.Desktop.Views;
 public partial class MainWindow : WindowBase<MainWindowViewModel>
 {
     private static Config _config;
-    private readonly SerialDisposable _layoutBindingsDisposable = new();
+    private readonly SingleReplaceableDisposable _layoutBindingsDisposable = new();
     private readonly WindowNotificationManager? _manager;
     private CheckUpdateView? _checkUpdateView;
     private BackupAndRestoreView? _backupAndRestoreView;
@@ -66,7 +65,9 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
             this.BindCommand(ViewModel, vm => vm.AddWireguardServerCmd, v => v.menuAddWireguardServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddAnytlsServerCmd, v => v.menuAddAnytlsServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddNaiveServerCmd, v => v.menuAddNaiveServer).DisposeWith(disposables);
+            this.BindCommand(ViewModel, vm => vm.AddMasqueServerCmd, v => v.menuAddMasqueServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddCustomServerCmd, v => v.menuAddCustomServer).DisposeWith(disposables);
+            this.BindCommand(ViewModel, vm => vm.AddCustomOutboundServerCmd, v => v.menuAddCustomOutboundServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddPolicyGroupServerCmd, v => v.menuAddPolicyGroupServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddProxyChainServerCmd, v => v.menuAddProxyChainServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddServerViaClipboardCmd, v => v.menuAddServerViaClipboard).DisposeWith(disposables);
@@ -130,7 +131,7 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
             ViewModel.ShowHideWindowInteraction.RegisterHandler(interaction =>
             {
                 ShowHideWindow(interaction.Input);
-                interaction.SetOutput(Unit.Default);
+                interaction.SetOutput(RxVoid.Default);
             }).DisposeWith(disposables);
 
             AppEvents.SendSnackMsgRequested
@@ -568,8 +569,10 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
 
     private void UpdateLayout(EGirdOrientation orientation)
     {
-        var currentLayoutDisposables = new CompositeDisposable();
-        _layoutBindingsDisposable.Disposable = currentLayoutDisposables;
+        var currentLayoutDisposables = new MultipleDisposable();
+        _layoutBindingsDisposable.Create(currentLayoutDisposables);
+
+        ClearLayoutContent();
 
         gridMain.IsVisible = orientation == EGirdOrientation.Horizontal;
         gridMain1.IsVisible = orientation == EGirdOrientation.Vertical;
@@ -582,7 +585,6 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
                 this.OneWayBind(ViewModel, vm => vm.MsgViewModel, v => v.tabMsgView.Content).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ClashProxiesViewModel, v => v.tabClashProxies.Content).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ClashConnectionsViewModel, v => v.tabClashConnections.Content).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabMsgView.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashProxies.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashConnections.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.Bind(ViewModel, vm => vm.TabMainSelectedIndex, v => v.tabMain.SelectedIndex).DisposeWith(currentLayoutDisposables);
@@ -593,7 +595,6 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
                 this.OneWayBind(ViewModel, vm => vm.MsgViewModel, v => v.tabMsgView1.Content).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ClashProxiesViewModel, v => v.tabClashProxies1.Content).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ClashConnectionsViewModel, v => v.tabClashConnections1.Content).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabMsgView1.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashProxies1.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashConnections1.IsVisible).DisposeWith(currentLayoutDisposables);
                 this.Bind(ViewModel, vm => vm.TabMainSelectedIndex, v => v.tabMain1.SelectedIndex).DisposeWith(currentLayoutDisposables);
@@ -612,6 +613,24 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
         }
 
         RestoreUI();
+    }
+
+    private void ClearLayoutContent()
+    {
+        tabProfiles.Content = null;
+        tabMsgView.Content = null;
+        tabClashProxies.Content = null;
+        tabClashConnections.Content = null;
+
+        tabProfiles1.Content = null;
+        tabMsgView1.Content = null;
+        tabClashProxies1.Content = null;
+        tabClashConnections1.Content = null;
+
+        tabProfiles2.Content = null;
+        tabMsgView2.Content = null;
+        tabClashProxies2.Content = null;
+        tabClashConnections2.Content = null;
     }
 
     private void AddHelpMenuItem()

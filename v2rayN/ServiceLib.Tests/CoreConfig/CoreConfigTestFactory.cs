@@ -1,8 +1,5 @@
-using System.Reflection;
-using ServiceLib.Enums;
-using ServiceLib.Manager;
-using ServiceLib.Models;
-
+using TUnit.Assertions.Should;
+using TUnit.Assertions.Should.Extensions;
 namespace ServiceLib.Tests.CoreConfig;
 
 internal static class CoreConfigTestFactory
@@ -150,6 +147,23 @@ internal static class CoreConfigTestFactory
         };
     }
 
+    public static ProfileItem CreateCustomOutboundNode(ECoreType coreType, string indexId = "node-custom-1",
+        string remarks = "demo-custom-outbound", string address = "custom_outbound.json")
+    {
+        return new ProfileItem
+        {
+            IndexId = indexId,
+            ConfigType = EConfigType.Outbound,
+            CoreType = coreType,
+            Remarks = remarks,
+            Address = address,
+            Port = 0,
+            Network = nameof(ETransport.raw),
+            StreamSecurity = string.Empty,
+            Subid = string.Empty,
+        };
+    }
+
     public static ProfileItem CreatePolicyGroupNode(ECoreType coreType, string indexId, string remarks,
         IEnumerable<string> childIndexIds)
     {
@@ -188,7 +202,8 @@ internal static class CoreConfigTestFactory
         return node;
     }
 
-    public static CoreConfigContext CreateContext(Config config, ProfileItem node, ECoreType runCoreType)
+    public static CoreConfigContext CreateContext(Config config, ProfileItem node, ECoreType runCoreType,
+        bool hasGlobalIPv6Address = true)
     {
         return new CoreConfigContext
         {
@@ -209,6 +224,7 @@ internal static class CoreConfigTestFactory
             FullConfigTemplate = null,
             IsTunEnabled = config.TunModeItem.EnableTun,
             ProtectDomainList = [],
+            HasGlobalIPv6Address = hasGlobalIPv6Address,
         };
     }
 
@@ -232,6 +248,14 @@ internal static class CoreConfigTestFactory
         var config = CreateConfig(coreType);
         config.TunModeItem.EnableTun = true;
         config.TunModeItem.RouteExcludeAddress = ["10.0.0.1/32", "192.168.1.0/24", "fc00::/7"];
+        return config;
+    }
+
+    public static Config CreateConfigWithTun(ECoreType coreType, bool enableIPv6Address)
+    {
+        var config = CreateConfig(coreType);
+        config.TunModeItem.EnableTun = true;
+        config.TunModeItem.EnableIPv6Address = enableIPv6Address;
         return config;
     }
 }

@@ -1,18 +1,19 @@
 namespace ServiceLib.ViewModels;
 
-public class CheckUpdateViewModel : MyReactiveObject
+public partial class CheckUpdateViewModel : MyReactiveObject
 {
     private const string _geo = "GeoFiles";
     private readonly ECoreType _v2rayN = ECoreType.v2rayN;
     private List<CheckUpdateModel> _lstUpdated = [];
     private static readonly string _tag = "CheckUpdateViewModel";
 
-    public EventChannel<Unit> ReloadRequested { get; } = new();
+    public EventChannel<RxVoid> ReloadRequested { get; } = new();
 
-    public IObservableCollection<CheckUpdateModel> CheckUpdateModels { get; } = new ObservableCollectionExtended<CheckUpdateModel>();
-    public ReactiveCommand<Unit, Unit> CheckUpdateCmd { get; }
-    public ReactiveCommand<Unit, Unit> CheckOnlyCmd { get; }
-    [Reactive] public bool EnableCheckPreReleaseUpdate { get; set; }
+    public BulkObservableCollection<CheckUpdateModel> CheckUpdateModels { get; } = [];
+    public ReactiveCommand<RxVoid, RxVoid> CheckUpdateCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> CheckOnlyCmd { get; }
+
+    [Reactive] public partial bool EnableUpdateViaProxy { get; set; }
 
     public CheckUpdateViewModel()
     {
@@ -32,26 +33,33 @@ public class CheckUpdateViewModel : MyReactiveObject
             _ = UpdateView(_v2rayN, ex.Message);
         });
 
-        EnableCheckPreReleaseUpdate = _config.CheckUpdateItem.CheckPreReleaseUpdate;
+        EnableUpdateViaProxy = _config.CheckUpdateItem.UpdateViaProxy;
 
-        this.WhenAnyValue(
-        x => x.EnableCheckPreReleaseUpdate,
-        y => y == true)
-            .Subscribe(c => _ = OnCheckPreReleaseUpdateChanged());
+        this.WhenAnyValue(x => x.EnableUpdateViaProxy)
+            .Subscribe(c => _ = OnUpdateViaProxyChanged());
 
-        RefreshCheckUpdateItems();
+        AppEvents.HasUpdateNotified
+         .AsObservable()
+         .ObserveOn(RxSchedulers.MainThreadScheduler)
+         .Subscribe(bl => RefreshCheckUpdateItems(bl));
+
+        RefreshCheckUpdateItems(true);
     }
 
-    private void RefreshCheckUpdateItems()
+    private void RefreshCheckUpdateItems(bool hasUpdate)
     {
+        if (!hasUpdate)
+        {
+            return;
+        }
+
         var models = CoreInfoManager.Instance.GetCheckUpdateCoreTypes()
                         .Select(t => GetCheckUpdateModel(t))
                         .ToList();
 
         models.Add(GetGeoFileCheckUpdateModel());
 
-        CheckUpdateModels.Clear();
-        CheckUpdateModels.AddRange(models);
+        CheckUpdateModels.ReplaceRange(models);
     }
 
     private CheckUpdateModel GetCheckUpdateModel(ECoreType coreType)
@@ -61,6 +69,8 @@ public class CheckUpdateViewModel : MyReactiveObject
             return new()
             {
                 IsSelected = false,
+                IsCheckPreRelease = false,
+                ShowCheckPreRelease = false,
                 CoreType = coreType,
                 IsGeoFile = false,
                 Remarks = ResUI.menuCheckUpdate + $" ({ResUI.MsgNotSupport})",
@@ -72,6 +82,8 @@ public class CheckUpdateViewModel : MyReactiveObject
         {
             IsSelected = coreType != _v2rayN
                 && (_config.CheckUpdateItem.SelectedCoreTypes?.Contains(coreType.ToString()) ?? true),
+            IsCheckPreRelease = _config.CheckUpdateItem.CheckPreReleaseCoreTypes?.Contains(coreType.ToString()) ?? false,
+            ShowCheckPreRelease = CoreInfoManager.Instance.GetCheckPreRelease(coreType, true),
             CoreType = coreType,
             IsGeoFile = false,
             Remarks = lastResult ?? ResUI.menuCheckUpdate,
@@ -83,19 +95,21 @@ public class CheckUpdateViewModel : MyReactiveObject
         return new()
         {
             IsSelected = _config.CheckUpdateItem.SelectedCoreTypes?.Contains(_geo) ?? true,
+            IsCheckPreRelease = false,
+            ShowCheckPreRelease = false,
             CoreType = null,
             IsGeoFile = true,
             Remarks = ResUI.menuCheckUpdate,
         };
     }
 
-    private async Task OnCheckPreReleaseUpdateChanged()
+    private async Task OnUpdateViaProxyChanged()
     {
-        if (_config.CheckUpdateItem.CheckPreReleaseUpdate == EnableCheckPreReleaseUpdate)
+        if (_config.CheckUpdateItem.UpdateViaProxy == EnableUpdateViaProxy)
         {
             return;
         }
-        _config.CheckUpdateItem.CheckPreReleaseUpdate = EnableCheckPreReleaseUpdate;
+        _config.CheckUpdateItem.UpdateViaProxy = EnableUpdateViaProxy;
         await SaveSelectedCoreTypes();
     }
 
@@ -105,6 +119,11 @@ public class CheckUpdateViewModel : MyReactiveObject
             CheckUpdateModels.Where(t => t.IsSelected == true)
                             .Select(t => t.CoreTypeForStorage)
                             .ToList();
+
+        _config.CheckUpdateItem.CheckPreReleaseCoreTypes =
+           CheckUpdateModels.Where(t => t.IsCheckPreRelease == true)
+                           .Select(t => t.CoreTypeForStorage)
+                           .ToList();
 
         await ConfigHandler.SaveConfig(_config);
     }
@@ -146,7 +165,7 @@ public class CheckUpdateViewModel : MyReactiveObject
             }
 
             var updateService = new UpdateService(_config, async (success, msg) => await Task.CompletedTask);
-            var result = await updateService.CheckHasUpdateOnly(item.CoreType.Value, EnableCheckPreReleaseUpdate);
+            var result = await updateService.CheckHasUpdateOnly(item.CoreType.Value, item.IsCheckPreRelease, EnableUpdateViaProxy);
             if (result.Success && result.Version != null)
             {
                 await UpdateView(item.CoreType, string.Format(ResUI.MsgCheckUpdateHasNewVersion, item.CoreType, result.Version));
@@ -192,15 +211,11 @@ public class CheckUpdateViewModel : MyReactiveObject
                     await UpdateView(_v2rayN, ResUI.MsgNotSupport);
                     continue;
                 }
-                await CheckUpdateN(EnableCheckPreReleaseUpdate);
-            }
-            else if (item.CoreType == ECoreType.Xray)
-            {
-                await CheckUpdateCore(item, EnableCheckPreReleaseUpdate);
+                await CheckUpdateN(item.IsCheckPreRelease);
             }
             else if (item.CoreType.HasValue)
             {
-                await CheckUpdateCore(item, false);
+                await CheckUpdateCore(item, item.IsCheckPreRelease);
             }
         }
 
@@ -231,7 +246,7 @@ public class CheckUpdateViewModel : MyReactiveObject
                 UpdatedPlusPlus(null, "");
             }
         }
-        await new UpdateService(_config, _updateUI).UpdateGeoFileAll()
+        await new UpdateService(_config, _updateUI).UpdateGeoFileAll(EnableUpdateViaProxy)
             .ContinueWith(t => UpdatedPlusPlus(null, ""));
     }
 
@@ -246,7 +261,7 @@ public class CheckUpdateViewModel : MyReactiveObject
                 UpdatedPlusPlus(_v2rayN, msg);
             }
         }
-        await new UpdateService(_config, _updateUI).CheckUpdateGuiN(preRelease)
+        await new UpdateService(_config, _updateUI).CheckUpdateGuiN(preRelease, EnableUpdateViaProxy)
             .ContinueWith(t => UpdatedPlusPlus(_v2rayN, ""));
     }
 
@@ -264,7 +279,7 @@ public class CheckUpdateViewModel : MyReactiveObject
 
         if (model.CoreType.HasValue)
         {
-            await new UpdateService(_config, _updateUI).CheckUpdateCore(model.CoreType.Value, preRelease)
+            await new UpdateService(_config, _updateUI).CheckUpdateCore(model.CoreType.Value, preRelease, EnableUpdateViaProxy)
                 .ContinueWith(t => UpdatedPlusPlus(model.CoreType, ""));
         }
     }
@@ -289,10 +304,9 @@ public class CheckUpdateViewModel : MyReactiveObject
 
     private async Task UpdateFinishedSub(bool blReload)
     {
-        RxSchedulers.MainThreadScheduler.Schedule(blReload, (scheduler, blReload) =>
+        RxSchedulers.MainThreadScheduler.Schedule(() =>
         {
             _ = UpdateFinishedResult(blReload);
-            return Disposable.Empty;
         });
         await Task.CompletedTask;
     }
@@ -405,10 +419,9 @@ public class CheckUpdateViewModel : MyReactiveObject
             Remarks = msg,
         };
 
-        RxSchedulers.MainThreadScheduler.Schedule(item, (scheduler, model) =>
+        RxSchedulers.MainThreadScheduler.Schedule(() =>
         {
-            _ = UpdateViewResult(model);
-            return Disposable.Empty;
+            _ = UpdateViewResult(item);
         });
         await Task.CompletedTask;
     }
