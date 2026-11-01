@@ -1897,4 +1897,16 @@
   <data name="menuAddMasqueServer" xml:space="preserve">
     <value>添加 [MASQUE]</value>
   </data>
+  <data name="TbSettingsTunAutoFakeIP" xml:space="preserve">
+    <value>TUN 模式下自动启用双栈 FakeIP（推荐）</value>
+  </data>
+  <data name="TbSettingsTunBlockEncryptedDns" xml:space="preserve">
+    <value>TUN 模式下阻断应用加密 DNS (DoH/DoT) 绕过</value>
+  </data>
+  <data name="TbSettingsTunClearSysProxy" xml:space="preserve">
+    <value>开启 TUN 时自动关闭系统代理（关闭 TUN 后恢复）</value>
+  </data>
+  <data name="TbSettingsTunPreferSingbox" xml:space="preserve">
+    <value>TUN 模式下优先使用 sing-box 单核运行</value>
+  </data>
 </root>

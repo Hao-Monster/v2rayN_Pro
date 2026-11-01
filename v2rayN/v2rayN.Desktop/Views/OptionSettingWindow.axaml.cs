@@ -137,6 +137,10 @@ public partial class OptionSettingWindow : WindowBase<OptionSettingViewModel>
             this.Bind(ViewModel, vm => vm.TunRouteExcludeAddress, v => v.txtRouteExcludeAddress.Text).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.TunIPv4Address, v => v.cmbIpv4Address.SelectedValue).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.TunIPv6Address, v => v.cmbIpv6Address.SelectedValue).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.TunAutoFakeIP, v => v.togTunAutoFakeIP.IsChecked).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.TunBlockEncryptedDnsBypass, v => v.togTunBlockEncryptedDnsBypass.IsChecked).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.TunClearSysProxyWhenTun, v => v.togTunClearSysProxyWhenTun.IsChecked).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.TunPreferSingboxInTun, v => v.togTunPreferSingboxInTun.IsChecked).DisposeWith(disposables);
 
             this.Bind(ViewModel, vm => vm.CoreType1, v => v.cmbCoreType1.SelectedValue).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.CoreType2, v => v.cmbCoreType2.SelectedValue).DisposeWith(disposables);

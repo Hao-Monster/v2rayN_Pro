@@ -21,6 +21,7 @@
 | HWID 默认请求标识 | `DeviceInfoHelper.cs` 及请求处理 | 中 |
 | Windows 与 macOS ARM64 完整运行时打包 | `package-osx.sh`、GitHub Actions | 高 |
 | macOS/Linux TUN 环境变量传递 | `CoreAdminManager.cs` | 低，已同步官方修复 |
+| TUN 全流量接管（双栈 FakeIP、DoH/DoT 旁路阻断、单核 `sing-box` 优选、系统代理自动协同） | `TunTakeoverPolicy.cs`、`CoreConfigContextBuilder.cs`、`Singbox*Service.cs`、`V2ray*Service.cs`、`StatusBarViewModel.cs`、`OptionSettingViewModel.cs` | 高 |
 
 ## 冲突热点
 
@@ -29,6 +30,9 @@
 - `v2rayN/ServiceLib/ViewModels/ProfilesViewModel.cs`
 - `v2rayN/ServiceLib/ViewModels/StatusBarViewModel.cs`
 - `v2rayN/ServiceLib/ViewModels/SubscriptionInfoViewModel.cs`
+- `v2rayN/ServiceLib/ViewModels/OptionSettingViewModel.cs`
+- `v2rayN/ServiceLib/Services/TunTakeoverPolicy.cs`
+- `v2rayN/ServiceLib/Handler/Builder/CoreConfigContextBuilder.cs`
 - `v2rayN/ServiceLib/Manager/CoreManager.cs`
 - `v2rayN/ServiceLib/Manager/TaskManager.cs`
 - `v2rayN/ServiceLib/Handler/SubscriptionSnapshotHandler.cs`
