@@ -120,7 +120,9 @@ public partial class CoreConfigSingboxService
         _coreConfig.dns.servers.Add(hostsDns);
 
         // fake ip
-        if (simpleDnsItem.FakeIP == true)
+        var effectiveFakeIp = TunTakeoverPolicy.IsEffectiveFakeIpEnabled(context);
+        var suppressIpv6Dns = TunTakeoverPolicy.ShouldSuppressIpv6Dns(context);
+        if (effectiveFakeIp)
         {
             var fakeipRange = simpleDnsItem.FakeIPRange.IsNullOrEmpty()
                 ? Global.FakeIPRanges.First()
@@ -130,6 +132,9 @@ public partial class CoreConfigSingboxService
                 tag = Global.SingboxFakeDNSTag,
                 type = "fakeip",
                 inet4_range = fakeipRange,
+                inet6_range = suppressIpv6Dns
+                    ? null
+                    : TunTakeoverPolicy.ResolveNonOverlappingFakeIpv6Range(_config),
             };
             _coreConfig.dns.servers.Add(fakeip);
         }
@@ -253,7 +258,21 @@ public partial class CoreConfigSingboxService
             });
         }
 
-        if (simpleDnsItem.FakeIP == true && simpleDnsItem.GlobalFakeIp != false)
+        var effectiveFakeIp = TunTakeoverPolicy.IsEffectiveFakeIpEnabled(context);
+        var suppressIpv6Dns = TunTakeoverPolicy.ShouldSuppressIpv6Dns(context);
+        List<int> fakeQueryTypes = suppressIpv6Dns ? [1] : [1, 28];
+
+        if (suppressIpv6Dns)
+        {
+            _coreConfig.dns.rules.Add(new()
+            {
+                query_type = [28],
+                action = "predefined",
+                rcode = "NOERROR",
+            });
+        }
+
+        if (effectiveFakeIp && simpleDnsItem.GlobalFakeIp != false)
         {
             var fakeipFilterRule =
                 JsonUtils.Deserialize<Rule4Sbox>(EmbedUtils.GetEmbedText(Global.SingboxFakeIPFilterFileName));
@@ -268,23 +287,13 @@ public partial class CoreConfigSingboxService
                 [
                     new()
                     {
-                        query_type = [1, 28], // A and AAAA
+                        query_type = [.. fakeQueryTypes],
                     },
                     fakeipFilterRule,
                 ],
             };
 
             _coreConfig.dns.rules.Add(rule4Fake);
-        }
-
-        if (simpleDnsItem.BlockAAAAQuery == true)
-        {
-            _coreConfig.dns.rules.Add(new()
-            {
-                query_type = [28],
-                action = "predefined",
-                rcode = "NOERROR",
-            });
         }
 
         var routing = context.RoutingItem;
@@ -415,15 +424,11 @@ public partial class CoreConfigSingboxService
             }
             else
             {
-                if (simpleDnsItem.FakeIP == true && simpleDnsItem.GlobalFakeIp == false)
+                if (effectiveFakeIp && simpleDnsItem.GlobalFakeIp == false)
                 {
                     var rule4Fake = JsonUtils.DeepCopy(rule);
                     rule4Fake.server = Global.SingboxFakeDNSTag;
-                    rule4Fake.query_type = new List<int>
-                    {
-                        1,
-                        28,
-                    }; // A and AAAA
+                    rule4Fake.query_type = [.. fakeQueryTypes];
                     rule4Fake.rewrite_ttl = 1;
                     _coreConfig.dns.rules.Add(rule4Fake);
                 }
@@ -431,16 +436,12 @@ public partial class CoreConfigSingboxService
             }
         }
         var useDirectDns = UseDirectDns();
-        if ((!useDirectDns) && simpleDnsItem.FakeIP == true && simpleDnsItem.GlobalFakeIp == false)
+        if ((!useDirectDns) && effectiveFakeIp && simpleDnsItem.GlobalFakeIp == false)
         {
             _coreConfig.dns.rules.Add(new()
             {
                 server = Global.SingboxFakeDNSTag,
-                query_type =
-                [
-                    1,
-                    28,
-                ], // A and AAAA
+                query_type = [.. fakeQueryTypes],
                 rewrite_ttl = 1,
             });
         }

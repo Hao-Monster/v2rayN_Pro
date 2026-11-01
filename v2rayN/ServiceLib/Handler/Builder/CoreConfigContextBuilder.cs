@@ -98,6 +98,18 @@ public class CoreConfigContextBuilder
             }
         }
 
+        if (context.IsTunEnabled
+            && context.RunCoreType != ECoreType.sing_box
+            && TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, context.Node, context.AllProxiesMap))
+        {
+            context = context with
+            {
+                RunCoreType = ECoreType.sing_box,
+                FullConfigTemplate = await AppManager.Instance.GetFullConfigTemplateItem(ECoreType.sing_box),
+                RawDnsItem = await AppManager.Instance.GetDNSItem(ECoreType.sing_box),
+            };
+        }
+
         if (context.IsTunEnabled && context.AppConfig.TunModeItem.RouteExcludeAddress is { Count: > 0 })
         {
             var appConfig = JsonUtils.DeepCopy(config);
@@ -191,7 +203,7 @@ public class CoreConfigContextBuilder
     {
         var config = nodeContext.AppConfig;
         var node = nodeContext.Node;
-        var coreType = AppManager.Instance.GetCoreType(node, node.ConfigType);
+        var coreType = nodeContext.RunCoreType;
 
         var preSocksItem = ConfigHandler.GetPreSocksItem(config, node, coreType);
         if (preSocksItem != null)

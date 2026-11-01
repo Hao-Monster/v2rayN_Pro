@@ -157,6 +157,30 @@ public partial class CoreConfigSingboxService
                 }
             }
 
+            if (context.IsTunEnabled && _config.TunModeItem.BlockEncryptedDnsBypass)
+            {
+                _coreConfig.route.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    port = [853],
+                    action = "reject",
+                });
+                _coreConfig.route.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    port = [443],
+                    ip_cidr = [.. Global.TunEncryptedDnsGuardIps],
+                    action = "reject",
+                });
+                _coreConfig.route.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    port = [443],
+                    domain_suffix = [.. Global.TunEncryptedDnsGuardDomains],
+                    action = "reject",
+                });
+            }
+
             var hostsDomains = new List<string>();
             if (rawDNSItem is not { Enabled: true })
             {

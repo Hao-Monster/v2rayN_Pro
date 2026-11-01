@@ -115,10 +115,21 @@ public partial class StatusBarViewModel : MyReactiveObject
         if (_config.TunModeItem.EnableTun && AllowEnableTun())
         {
             EnableTun = true;
+            var startupTransition = TunTakeoverPolicy.PlanTunSysProxyTransition(_config, true);
+            if (startupTransition.TargetSysProxy is { } targetSysProxy)
+            {
+                _config.SystemProxyItem.SysProxyType = targetSysProxy;
+                TunTakeoverPolicy.CommitTunSysProxyTransition(_config, true, startupTransition.SavedBeforeTun);
+            }
         }
         else
         {
+            var hadTunSaved = _config.TunModeItem.EnableTun;
             _config.TunModeItem.EnableTun = EnableTun = false;
+            if (hadTunSaved)
+            {
+                TunTakeoverPolicy.RecoverStartupSysProxyWhenTunUnavailable(_config);
+            }
         }
 
         #region WhenAnyValue && ReactiveCommand
@@ -513,6 +524,19 @@ public partial class StatusBarViewModel : MyReactiveObject
                     return;
                 }
             }
+        }
+
+        var transition = TunTakeoverPolicy.PlanTunSysProxyTransition(_config, EnableTun);
+        if (transition.TargetSysProxy is { } targetSysProxy)
+        {
+            if (await SetListenerType(targetSysProxy))
+            {
+                TunTakeoverPolicy.CommitTunSysProxyTransition(_config, EnableTun, transition.SavedBeforeTun);
+            }
+        }
+        else
+        {
+            TunTakeoverPolicy.CommitTunSysProxyTransition(_config, EnableTun, transition.SavedBeforeTun);
         }
 
         await ConfigHandler.SaveConfig(_config);

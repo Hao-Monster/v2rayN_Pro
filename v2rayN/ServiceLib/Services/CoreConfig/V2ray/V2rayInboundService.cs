@@ -57,7 +57,7 @@ public partial class CoreConfigV2rayService
             {
                 if (_config.TunModeItem.Mtu <= 0)
                 {
-                    _config.TunModeItem.Mtu = Global.TunMtus.First();
+                    _config.TunModeItem.Mtu = Global.DefaultTunMtu;
                 }
                 var tunInbound =
                     JsonUtils.Deserialize<Inbounds4Ray>(EmbedUtils.GetEmbedText(Global.V2raySampleTunInbound)) ??
@@ -84,9 +84,9 @@ public partial class CoreConfigV2rayService
                 {
                     tunInbound.settings.autoOutboundsInterface = bindInterface;
                 }
-                tunInbound.sniffing = inbound.sniffing;
-                // tunInbound.sniffing.routeOnly = inbound.sniffing.routeOnly;
+                tunInbound.sniffing = JsonUtils.DeepCopy(inbound.sniffing);
                 tunInbound.sniffing.routeOnly = true;
+                ApplyEffectiveFakeDnsDestOverride(tunInbound.sniffing);
 
                 if (context.IsWindows && _config.TunModeItem.StrictRoute == true)
                 {
@@ -165,19 +165,39 @@ public partial class CoreConfigV2rayService
         inbound.protocol = nameof(EInboundProtocol.mixed);
         inbound.settings.udp = inItem.UdpEnabled;
         inbound.sniffing.enabled = inItem.SniffingEnabled;
-        inbound.sniffing.destOverride = inItem.DestOverride;
+        inbound.sniffing.destOverride = inItem.DestOverride?.ToList();
         inbound.sniffing.routeOnly = inItem.RouteOnly;
-
-        if (_config.SimpleDNSItem.FakeIP == true)
-        {
-            // Ensure destOverride contains "fakedns" if FakeIP is enabled
-            inbound.sniffing.destOverride ??= [];
-            if (!inbound.sniffing.destOverride.Contains("fakedns"))
-            {
-                inbound.sniffing.destOverride.Add("fakedns");
-            }
-        }
+        ApplyEffectiveFakeDnsDestOverride(inbound.sniffing);
 
         return inbound;
+    }
+
+    private void ApplyEffectiveFakeDnsDestOverride(Sniffing4Ray? sniffing)
+    {
+        if (sniffing is not { enabled: true } || !TunTakeoverPolicy.IsEffectiveFakeIpEnabled(context))
+        {
+            return;
+        }
+
+        sniffing.destOverride ??= [];
+        if (sniffing.routeOnly)
+        {
+            var hasOtherSniffers = sniffing.destOverride.Any(p =>
+                !string.Equals(p, "fakedns", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(p, "fakedns+others", StringComparison.OrdinalIgnoreCase));
+            if (hasOtherSniffers || sniffing.destOverride.Contains("fakedns+others"))
+            {
+                sniffing.destOverride = ["fakedns+others"];
+            }
+            else
+            {
+                sniffing.destOverride = ["fakedns"];
+                sniffing.routeOnly = false;
+            }
+        }
+        else if (!sniffing.destOverride.Contains("fakedns") && !sniffing.destOverride.Contains("fakedns+others"))
+        {
+            sniffing.destOverride.Add("fakedns");
+        }
     }
 }

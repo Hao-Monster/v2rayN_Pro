@@ -665,7 +665,7 @@ public partial class MainWindowViewModel : MyReactiveObject
 
             var activeBeforeUpdate = _config.IndexId;
             var keepActiveServer = !recoveryMode
-                && _config.SystemProxyItem.SysProxyType == ESysProxyType.ForcedChange
+                && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config)
                 && await AppManager.Instance.GetProfileItem(activeBeforeUpdate) is not null;
 
             foreach (var id in subscriptionIds)
@@ -721,7 +721,7 @@ public partial class MainWindowViewModel : MyReactiveObject
                 }
                 else
                 {
-                    proxyConfigured = await StatusBarViewModel.SetListenerType(ESysProxyType.ForcedChange);
+                    proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
                 }
             }
             else if (!keepActiveServer || currentProfile is null)
@@ -803,7 +803,7 @@ public partial class MainWindowViewModel : MyReactiveObject
             Logging.SaveLog($"Network recovery could not start the selected server. Server={indexId}.");
             return false;
         }
-        var proxyConfigured = await StatusBarViewModel.SetListenerType(ESysProxyType.ForcedChange);
+        var proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
         Logging.SaveLog($"Network recovery activated server. Server={indexId}, Changed={changed}.");
         return proxyConfigured;
     }
@@ -932,7 +932,7 @@ public partial class MainWindowViewModel : MyReactiveObject
             var currentDelay = active is null ? -1 : await ConnectionHandler.GetRealPingTimeInfo();
             if (currentDelay is > 0 and <= SlowNetworkDelay)
             {
-                var proxyConfigured = await StatusBarViewModel.SetListenerType(ESysProxyType.ForcedChange);
+                var proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
                 if (proxyConfigured && await ConnectionHandler.HasProxyInternetAccess())
                 {
                     _consecutiveNetworkFailures = 0;

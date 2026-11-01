@@ -55,11 +55,11 @@ public partial class CoreConfigSingboxService
             {
                 if (_config.TunModeItem.Mtu <= 0)
                 {
-                    _config.TunModeItem.Mtu = Global.TunMtus.First();
+                    _config.TunModeItem.Mtu = Global.DefaultTunMtu;
                 }
                 if (_config.TunModeItem.Stack.IsNullOrEmpty())
                 {
-                    _config.TunModeItem.Stack = Global.TunStacks.First();
+                    _config.TunModeItem.Stack = Global.DefaultTunStack;
                 }
 
                 var tunInbound = JsonUtils.Deserialize<Inbound4Sbox>(EmbedUtils.GetEmbedText(Global.TunSingboxInboundFileName)) ?? new Inbound4Sbox { };

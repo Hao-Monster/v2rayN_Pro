@@ -82,7 +82,7 @@ public partial class CoreConfigV2rayService
             dnsItem.serveStale = simpleDnsItem?.ServeStale is true ? true : null;
             dnsItem.enableParallelQuery = simpleDnsItem?.ParallelQuery is true ? true : null;
 
-            if (simpleDnsItem.BlockAAAAQuery == true)
+            if (TunTakeoverPolicy.ShouldSuppressIpv6Dns(context))
             {
                 dnsItem.queryStrategy = "UseIPv4";
             }
@@ -127,27 +127,45 @@ public partial class CoreConfigV2rayService
 
     private void GenFakeDns()
     {
-        var fakeipRange = _config.SimpleDNSItem.FakeIPRange.IsNullOrEmpty() ? Global.FakeIPRanges.First() : _config.SimpleDNSItem.FakeIPRange;
-        var poolSize = 65535L;
+        var fakeipRange = _config.SimpleDNSItem.FakeIPRange.IsNullOrEmpty()
+            ? Global.FakeIPRanges.First()
+            : _config.SimpleDNSItem.FakeIPRange;
+
+        if (TunTakeoverPolicy.ShouldSuppressIpv6Dns(context))
+        {
+            _coreConfig.fakedns = BuildFakeDnsPool(fakeipRange);
+            return;
+        }
+
+        var fakeIpv6Range = TunTakeoverPolicy.ResolveNonOverlappingFakeIpv6Range(_config);
+        _coreConfig.fakedns = new List<FakeDns4Ray>
+        {
+            BuildFakeDnsPool(fakeipRange),
+            BuildFakeDnsPool(fakeIpv6Range),
+        };
+    }
+
+    private static FakeDns4Ray BuildFakeDnsPool(string cidr)
+    {
+        const long maxLruPoolSize = 65535L;
+        var poolSize = maxLruPoolSize;
         try
         {
-            var fakeipNetwork = IPNetwork2.Parse(fakeipRange);
-            var totalIPs = fakeipNetwork.Total;
-            // see https://github.com/XTLS/Xray-core/blob/6e3322d219140a025285ded1114fe17a5edb74d8/app/dns/fakedns/fake.go#L88
-            // if math.Log2(float64(lruSize)) >= float64(rooms) { return errors.New("LRU size is bigger than subnet size").AtError() }
-            totalIPs -= 1;
-            if (totalIPs > 0)
+            var fakeipNetwork = IPNetwork2.Parse(cidr);
+            var totalIPs = fakeipNetwork.Total - 1;
+            if (totalIPs > 0 && totalIPs < maxLruPoolSize)
             {
-                poolSize = (totalIPs >= long.MaxValue) ? long.MaxValue : (long)totalIPs;
+                poolSize = (long)totalIPs;
             }
         }
         catch
         {
             // Ignore
         }
-        _coreConfig.fakedns = new()
+
+        return new FakeDns4Ray
         {
-            ipPool = fakeipRange,
+            ipPool = cidr,
             poolSize = poolSize,
         };
     }
@@ -280,11 +298,12 @@ public partial class CoreConfigV2rayService
             AddDnsServers(directDNSAddress, context.ProtectDomainList, true);
         }
 
-        if (simpleDNSItem.FakeIP == true)
+        var effectiveFakeIp = TunTakeoverPolicy.IsEffectiveFakeIpEnabled(context);
+        if (effectiveFakeIp)
         {
             var fakeIPMatchDomain = new HashSet<string>(proxyDomainList);
             fakeIPMatchDomain.UnionWith(proxyGeositeList);
-            if (simpleDNSItem.GlobalFakeIp != false)
+            if (simpleDNSItem?.GlobalFakeIp != false)
             {
                 fakeIPMatchDomain.UnionWith(directDomainList);
                 fakeIPMatchDomain.UnionWith(directGeositeList);
@@ -294,6 +313,11 @@ public partial class CoreConfigV2rayService
             {
                 GenFakeDns();
                 AddDnsServers(["fakedns"], fakeIPMatchDomain);
+            }
+            else if (simpleDNSItem?.GlobalFakeIp != false)
+            {
+                GenFakeDns();
+                dnsItem.servers.Add("fakedns");
             }
         }
 

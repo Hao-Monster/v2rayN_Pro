@@ -20,7 +20,7 @@ public partial class CoreConfigSingboxService
             {
                 enabled = true,
                 path = Utils.GetBinPath("cache.db"),
-                store_fakeip = context.SimpleDnsItem.FakeIP == true
+                store_fakeip = TunTakeoverPolicy.IsEffectiveFakeIpEnabled(context)
             };
         }
     }

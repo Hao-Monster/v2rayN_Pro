@@ -91,7 +91,7 @@ public class CoreConfigClashService(Config config, bool isTunEnabled)
             }
 
             //ipv6
-            fileContent["ipv6"] = config.ClashUIItem.EnableIPv6;
+            fileContent["ipv6"] = config.ClashUIItem.EnableIPv6 || (isTunEnabled && config.TunModeItem.EnableIPv6Address);
 
             //mode
             fileContent.TryAdd("mode", nameof(ERuleMode.Rule));
@@ -103,9 +103,16 @@ public class CoreConfigClashService(Config config, bool isTunEnabled)
                 if (tun.IsNotEmpty())
                 {
                     var tunContent = YamlUtils.FromYaml<Dictionary<string, object>>(tun);
-                    if (tunContent != null)
+                    if (tunContent != null && tunContent.TryGetValue("tun", out var tunObj))
                     {
-                        fileContent["tun"] = tunContent["tun"];
+                        if (tunObj is Dictionary<object, object> tunDict)
+                        {
+                            tunDict["stack"] = config.TunModeItem.Stack.NullIfEmpty() ?? Global.DefaultTunStack;
+                            tunDict["mtu"] = config.TunModeItem.Mtu > 0 ? config.TunModeItem.Mtu : Global.DefaultTunMtu;
+                            tunDict["auto-route"] = config.TunModeItem.AutoRoute;
+                            tunDict["strict-route"] = config.TunModeItem.StrictRoute;
+                        }
+                        fileContent["tun"] = tunObj;
                     }
                 }
             }
