@@ -172,13 +172,17 @@ public partial class CoreConfigSingboxService
                     ip_cidr = [.. Global.TunEncryptedDnsGuardIps],
                     action = "reject",
                 });
-                _coreConfig.route.rules.Add(new()
+                var guardDomains = TunTakeoverPolicy.GetDnsGuardBlockedDomains(context);
+                if (guardDomains.Count > 0)
                 {
-                    inbound = ["tun"],
-                    port = [443],
-                    domain_suffix = [.. Global.TunEncryptedDnsGuardDomains],
-                    action = "reject",
-                });
+                    _coreConfig.route.rules.Add(new()
+                    {
+                        inbound = ["tun"],
+                        port = [443],
+                        domain_suffix = guardDomains,
+                        action = "reject",
+                    });
+                }
             }
 
             var hostsDomains = new List<string>();

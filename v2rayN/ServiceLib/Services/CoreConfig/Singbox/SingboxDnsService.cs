@@ -156,6 +156,21 @@ public partial class CoreConfigSingboxService
         _coreConfig.dns ??= new Dns4Sbox();
         _coreConfig.dns.rules ??= [];
 
+        if (context.IsTunEnabled && _config.TunModeItem.BlockEncryptedDnsBypass)
+        {
+            var blockedDomains = TunTakeoverPolicy.GetDnsGuardBlockedDomains(context);
+            if (blockedDomains.Count > 0)
+            {
+                _coreConfig.dns.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    domain_suffix = blockedDomains,
+                    action = "predefined",
+                    rcode = "NXDOMAIN",
+                });
+            }
+        }
+
         _coreConfig.dns.rules.Add(new()
         {
             preferred_by = Global.SingboxHostsDNSTag,

@@ -34,6 +34,13 @@ public class CoreConfigContextBuilder
     public static async Task<CoreConfigContextBuilderResult> Build(Config config, ProfileItem node)
     {
         var runCoreType = AppManager.Instance.GetCoreType(node, node.ConfigType);
+        if (runCoreType != ECoreType.sing_box
+            && node.CoreType is null
+            && config.TunModeItem is { EnableTun: true, PreferSingboxInTun: true }
+            && Global.SingboxOnlyConfigType.Contains(node.ConfigType))
+        {
+            runCoreType = ECoreType.sing_box;
+        }
         var coreType = runCoreType == ECoreType.sing_box ? ECoreType.sing_box : ECoreType.Xray;
         var context = new CoreConfigContext
         {
@@ -100,7 +107,12 @@ public class CoreConfigContextBuilder
 
         if (context.IsTunEnabled
             && context.RunCoreType != ECoreType.sing_box
-            && TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, context.Node, context.AllProxiesMap))
+            && TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(
+                config,
+                context.Node,
+                context.AllProxiesMap,
+                context.FullConfigTemplate,
+                context.RawDnsItem))
         {
             context = context with
             {

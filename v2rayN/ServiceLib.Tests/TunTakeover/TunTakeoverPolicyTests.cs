@@ -483,6 +483,325 @@ public class TunTakeoverPolicyTests
         await legacyConfig.TunModeItem.EnableIPv6Address.Should().BeFalse();
     }
 
+    [Test]
+    public async Task SysProxyCoordination_PreExistingForcedClear_AndLiveClearSysProxyToggle_PreserveExactOriginState()
+    {
+        var config = CoreConfigTestFactory.CreateConfig(ECoreType.sing_box);
+        config.SystemProxyItem.SysProxyType = ESysProxyType.ForcedClear;
+        config.TunModeItem.EnableTun = false;
+        config.TunModeItem.ClearSysProxyWhenTun = true;
+        config.TunModeItem.LastSysProxyBeforeTun = null;
+
+        // 1. User intentionally had ForcedClear BEFORE enabling TUN: turning TUN on & off must NOT force-enable system proxy
+        var enableFromClear = TunTakeoverPolicy.PlanTunSysProxyTransition(config, enableTun: true);
+        await enableFromClear.TargetSysProxy.Should().BeNull();
+        await enableFromClear.SavedBeforeTun.Should().BeEqualTo(ESysProxyType.ForcedClear);
+
+        config.TunModeItem.EnableTun = true;
+        TunTakeoverPolicy.CommitTunSysProxyTransition(config, enableTun: true, enableFromClear.SavedBeforeTun);
+        await config.TunModeItem.LastSysProxyBeforeTun.Should().BeEqualTo(ESysProxyType.ForcedClear);
+
+        var disableAfterClear = TunTakeoverPolicy.PlanTunSysProxyTransition(config, enableTun: false);
+        await disableAfterClear.TargetSysProxy.Should().BeNull();
+
+        config.TunModeItem.EnableTun = false;
+        TunTakeoverPolicy.CommitTunSysProxyTransition(config, enableTun: false, disableAfterClear.SavedBeforeTun);
+        await config.SystemProxyItem.SysProxyType.Should().BeEqualTo(ESysProxyType.ForcedClear);
+        await config.TunModeItem.LastSysProxyBeforeTun.Should().BeNull();
+
+        // Non-elevated startup recovery when previous origin was ForcedClear keeps ForcedClear
+        config.TunModeItem.LastSysProxyBeforeTun = ESysProxyType.ForcedClear;
+        TunTakeoverPolicy.RecoverStartupSysProxyWhenTunUnavailable(config);
+        await config.SystemProxyItem.SysProxyType.Should().BeEqualTo(ESysProxyType.ForcedClear);
+        await config.TunModeItem.LastSysProxyBeforeTun.Should().BeNull();
+
+        // 2. Live toggling ClearSysProxyWhenTun inside OptionSettingWindow while EnableTun == true
+        config.TunModeItem.EnableTun = true;
+        config.TunModeItem.ClearSysProxyWhenTun = false;
+        config.SystemProxyItem.SysProxyType = ESysProxyType.Pac;
+
+        config.TunModeItem.ClearSysProxyWhenTun = true;
+        var syncOnPlan = TunTakeoverPolicy.PlanLiveTunSettingsSysProxySync(config);
+        await syncOnPlan.TargetSysProxy.Should().BeEqualTo(ESysProxyType.ForcedClear);
+        await syncOnPlan.SavedBeforeTun.Should().BeEqualTo(ESysProxyType.Pac);
+        config.SystemProxyItem.SysProxyType = syncOnPlan.TargetSysProxy!.Value;
+        TunTakeoverPolicy.CommitLiveTunSettingsSysProxySync(config, syncOnPlan.SavedBeforeTun);
+        await config.TunModeItem.LastSysProxyBeforeTun.Should().BeEqualTo(ESysProxyType.Pac);
+
+        config.TunModeItem.ClearSysProxyWhenTun = false;
+        var syncOffPlan = TunTakeoverPolicy.PlanLiveTunSettingsSysProxySync(config);
+        await syncOffPlan.TargetSysProxy.Should().BeEqualTo(ESysProxyType.Pac);
+        config.SystemProxyItem.SysProxyType = syncOffPlan.TargetSysProxy!.Value;
+        TunTakeoverPolicy.CommitLiveTunSettingsSysProxySync(config, syncOffPlan.SavedBeforeTun);
+        await config.SystemProxyItem.SysProxyType.Should().BeEqualTo(ESysProxyType.Pac);
+        await config.TunModeItem.LastSysProxyBeforeTun.Should().BeNull();
+    }
+
+    [Test]
+    public async Task CoreSelection_SecurityPinningOrTcpHttpObfsOrActiveXrayTemplate_FallsBackToPreSocks()
+    {
+        var config = CoreConfigTestFactory.CreateConfig(ECoreType.Xray);
+        await EnsureCoreContextSqliteTablesAsync(config);
+        config.TunModeItem.EnableTun = true;
+        config.TunModeItem.PreferSingboxInTun = true;
+        config.CoreTypeItem =
+        [
+            new CoreTypeItem { ConfigType = EConfigType.VLESS, CoreType = ECoreType.Xray },
+            new CoreTypeItem { ConfigType = EConfigType.VMess, CoreType = ECoreType.Xray },
+            new CoreTypeItem { ConfigType = EConfigType.SOCKS, CoreType = ECoreType.Xray },
+            new CoreTypeItem { ConfigType = EConfigType.HTTP, CoreType = ECoreType.Xray },
+        ];
+        CoreConfigTestFactory.BindAppManagerConfig(config);
+
+        ProfileItem CreateBaseVless() => new()
+        {
+            IndexId = $"vless-guard-{Guid.NewGuid():N}",
+            ConfigType = EConfigType.VLESS,
+            CoreType = null,
+            Remarks = "vless-guard",
+            Address = "example.com",
+            Port = 443,
+            Password = Guid.NewGuid().ToString(),
+            Network = nameof(ETransport.raw),
+            StreamSecurity = Global.StreamSecurity,
+            Sni = "example.com",
+        };
+
+        var certShaNode = CreateBaseVless();
+        certShaNode.CertSha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, certShaNode).Should().BeFalse();
+
+        var mldsaNode = CreateBaseVless();
+        mldsaNode.StreamSecurity = Global.StreamSecurityReality;
+        mldsaNode.PublicKey = "test-public-key";
+        mldsaNode.Mldsa65Verify = "test-mldsa65-verify";
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, mldsaNode).Should().BeFalse();
+
+        var verifyByNameNode = CreateBaseVless();
+        verifyByNameNode.VerifyPeerCertByName = "alt.example.com";
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, verifyByNameNode).Should().BeFalse();
+
+        var socksTlsNode = CoreConfigTestFactory.CreateSocksNode(ECoreType.Xray);
+        socksTlsNode.CoreType = null;
+        socksTlsNode.StreamSecurity = Global.StreamSecurity;
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, socksTlsNode).Should().BeFalse();
+
+        var httpHeaderNode = CoreConfigTestFactory.CreateHttpNode(ECoreType.Xray);
+        httpHeaderNode.CoreType = null;
+        httpHeaderNode.SetProtocolExtra(httpHeaderNode.GetProtocolExtra() with
+        {
+            HttpHeaders = "{\"User-Agent\":\"custom\"}",
+        });
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, httpHeaderNode).Should().BeFalse();
+
+        var tcpHttpObfsVmess = CoreConfigTestFactory.CreateVmessNode(ECoreType.Xray);
+        tcpHttpObfsVmess.CoreType = null;
+        tcpHttpObfsVmess.Network = nameof(ETransport.raw);
+        tcpHttpObfsVmess.SetTransportExtra(tcpHttpObfsVmess.GetTransportExtra() with
+        {
+            RawHeaderType = Global.RawHeaderHttp,
+            Host = "obfs.example.com",
+        });
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, tcpHttpObfsVmess).Should().BeFalse();
+
+        // Non-tlshello TCP range fragment must stay on Xray
+        var cleanVless = CreateBaseVless();
+        config.CoreBasicItem.EnableFragment = true;
+        config.Fragment4RayItem = new Fragment4RayItem { Packets = "1-3" };
+        await TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(config, cleanVless).Should().BeFalse();
+        config.CoreBasicItem.EnableFragment = false;
+
+        // CertSha node in BuildAll must run Xray + PreSocks (never strip pinnedPeerCertSha256)
+        var certShaResult = await CoreConfigContextBuilder.BuildAll(config, certShaNode);
+        await certShaResult.Success.Should().BeTrue();
+        await certShaResult.MainResult.Context.RunCoreType.Should().BeEqualTo(ECoreType.Xray);
+        await certShaResult.PreSocksResult.Should().NotBeNull();
+
+        // Active Xray FullConfigTemplateItem must prevent promotion to sing-box
+        var templateItem = new FullConfigTemplateItem
+        {
+            Id = $"tpl-xray-{Guid.NewGuid():N}",
+            CoreType = ECoreType.Xray,
+            Enabled = true,
+            Config = "{}",
+        };
+        await SQLiteHelper.Instance.ReplaceAsync(templateItem);
+        try
+        {
+            var tplResult = await CoreConfigContextBuilder.BuildAll(config, cleanVless);
+            await tplResult.Success.Should().BeTrue();
+            await tplResult.MainResult.Context.RunCoreType.Should().BeEqualTo(ECoreType.Xray);
+            await tplResult.PreSocksResult.Should().NotBeNull();
+        }
+        finally
+        {
+            await SQLiteHelper.Instance.DeleteAsync(templateItem);
+        }
+    }
+
+    [Test]
+    public async Task CoreSelection_SingboxOnlyProtocolWithNullCoreType_SucceedsInSingleCoreTun()
+    {
+        var config = CoreConfigTestFactory.CreateConfig(ECoreType.Xray);
+        await EnsureCoreContextSqliteTablesAsync(config);
+        config.TunModeItem.EnableTun = true;
+        config.TunModeItem.PreferSingboxInTun = true;
+        config.CoreTypeItem =
+        [
+            new CoreTypeItem { ConfigType = EConfigType.VLESS, CoreType = ECoreType.Xray }
+        ];
+        CoreConfigTestFactory.BindAppManagerConfig(config);
+
+        var tuicNode = new ProfileItem
+        {
+            IndexId = $"tuic-tun-{Guid.NewGuid():N}",
+            ConfigType = EConfigType.TUIC,
+            CoreType = null,
+            Remarks = "tuic-auto",
+            Address = "tuic.example.com",
+            Port = 443,
+            Username = Guid.NewGuid().ToString(),
+            Password = "tuic-password",
+            Network = nameof(ETransport.raw),
+            StreamSecurity = Global.StreamSecurity,
+            Sni = "tuic.example.com",
+        };
+        tuicNode.SetProtocolExtra(tuicNode.GetProtocolExtra() with
+        {
+            CongestionControl = "bbr",
+        });
+
+        var allResult = await CoreConfigContextBuilder.BuildAll(config, tuicNode);
+
+        await allResult.Success.Should().BeTrue().Because(string.Join("; ", allResult.CombinedValidatorResult.Errors));
+        await allResult.PreSocksResult.Should().BeNull();
+        await allResult.MainResult.Context.RunCoreType.Should().BeEqualTo(ECoreType.sing_box);
+        await allResult.MainResult.Context.IsTunEnabled.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task DnsGuard_ShortCircuitsDdrAndDohAtDnsLayer_WhileExemptingProtectDomainsAndCustomHosts()
+    {
+        // 1. sing-box TUN: NXDOMAIN rule precedes hosts-dns, blocks resolver.arpa & dns.alidns.com,
+        //    and exempts ProtectDomainList + custom Hosts
+        var sbConfig = CoreConfigTestFactory.CreateConfig(ECoreType.sing_box);
+        sbConfig.TunModeItem.EnableTun = true;
+        sbConfig.TunModeItem.BlockEncryptedDnsBypass = true;
+        sbConfig.SimpleDNSItem.AddCommonHosts = true;
+        sbConfig.SimpleDNSItem.Hosts = "dns.google 8.8.8.8";
+        CoreConfigTestFactory.BindAppManagerConfig(sbConfig);
+
+        var sbNode = CoreConfigTestFactory.CreateVmessNode(ECoreType.sing_box);
+        var sbContext = CoreConfigTestFactory.CreateContext(sbConfig, sbNode, ECoreType.sing_box) with
+        {
+            IsTunEnabled = true,
+            ProtectDomainList = ["cloudflare-dns.com"],
+        };
+
+        var sbResult = new CoreConfigSingboxService(sbContext).GenerateClientConfigContent();
+        await sbResult.Success.Should().BeTrue().Because($"ret msg: {sbResult.Msg}");
+        var sbCfg = JsonUtils.Deserialize<SingboxConfig>(sbResult.Data!.ToString())!;
+
+        var nxRuleIdx = sbCfg.dns!.rules.FindIndex(r =>
+            r.action == "predefined"
+            && r.rcode == "NXDOMAIN"
+            && r.inbound != null && r.inbound.Contains("tun")
+            && r.domain_suffix != null);
+        var hostsRuleIdx = sbCfg.dns.rules.FindIndex(r => r.preferred_by == Global.SingboxHostsDNSTag);
+
+        await nxRuleIdx.Should().BeEqualTo(0);
+        await hostsRuleIdx.Should().BeGreaterThan(nxRuleIdx);
+
+        var nxDomains = sbCfg.dns.rules[nxRuleIdx].domain_suffix!;
+        await nxDomains.Should().Contain("resolver.arpa");
+        await nxDomains.Should().Contain("dns.alidns.com");
+        await nxDomains.Should().NotContain("cloudflare-dns.com");
+        await nxDomains.Should().NotContain("dns.google");
+
+        // 2. Xray TUN: blocks non-upstream DoH & DDR via 0.0.0.0 hosts while preserving Xray's own RemoteDNS domain
+        var xrayConfig = CoreConfigTestFactory.CreateConfig(ECoreType.Xray);
+        xrayConfig.TunModeItem.EnableTun = true;
+        xrayConfig.TunModeItem.BlockEncryptedDnsBypass = true;
+        xrayConfig.SimpleDNSItem.AddCommonHosts = true;
+        xrayConfig.SimpleDNSItem.RemoteDNS = "https://cloudflare-dns.com/dns-query";
+        xrayConfig.SimpleDNSItem.DirectDNS = "119.29.29.29";
+        CoreConfigTestFactory.BindAppManagerConfig(xrayConfig);
+
+        var xrayNode = CoreConfigTestFactory.CreateVmessNode(ECoreType.Xray);
+        var xrayContext = CoreConfigTestFactory.CreateContext(xrayConfig, xrayNode, ECoreType.Xray) with
+        {
+            IsTunEnabled = true,
+        };
+
+        var xrayResult = new CoreConfigV2rayService(xrayContext).GenerateClientConfigContent();
+        await xrayResult.Success.Should().BeTrue().Because($"ret msg: {xrayResult.Msg}");
+        var xrayCfg = JsonUtils.Deserialize<V2rayConfig>(xrayResult.Data!.ToString())!;
+        var xrayDns = JsonUtils.Deserialize<Dns4Ray>(JsonUtils.Serialize(xrayCfg.dns))!;
+
+        await xrayDns.hosts.Should().NotBeNull();
+        await xrayDns.hosts!.Should().ContainKey("domain:resolver.arpa");
+        await xrayDns.hosts.Should().ContainKey("domain:dns.alidns.com");
+        await xrayDns.hosts.Should().NotContainKey("dns.alidns.com");
+        await xrayDns.hosts.Should().ContainKey("cloudflare-dns.com");
+        await xrayDns.hosts.Should().NotContainKey("domain:cloudflare-dns.com");
+    }
+
+    [Test]
+    public async Task ClashTun_GeneratesInet6AddressAndFilteredRouteExcludeAddress()
+    {
+        var config = CoreConfigTestFactory.CreateConfig(ECoreType.mihomo);
+        config.TunModeItem.EnableTun = true;
+        config.TunModeItem.EnableIPv6Address = true;
+        config.TunModeItem.Stack = "mixed";
+        config.TunModeItem.Mtu = 1500;
+        config.TunModeItem.RouteExcludeAddress = ["10.88.0.0/16", "not-a-valid-cidr"];
+        CoreConfigTestFactory.BindAppManagerConfig(config);
+
+        var tempInputYaml = Path.Combine(Path.GetTempPath(), $"clash-in-{Guid.NewGuid():N}.yaml");
+        var tempOutputYaml = Path.Combine(Path.GetTempPath(), $"clash-out-{Guid.NewGuid():N}.yaml");
+        await File.WriteAllTextAsync(tempInputYaml, "proxies: []\nproxy-groups: []\nrules:\n  - MATCH,DIRECT\n");
+
+        try
+        {
+            var customNode = new ProfileItem
+            {
+                IndexId = $"clash-custom-{Guid.NewGuid():N}",
+                ConfigType = EConfigType.Custom,
+                CoreType = ECoreType.mihomo,
+                Remarks = "clash-tun-test",
+                Address = tempInputYaml,
+            };
+
+            var ret = await new CoreConfigClashService(config, isTunEnabled: true)
+                .GenerateClientCustomConfig(customNode, tempOutputYaml);
+
+            await ret.Success.Should().BeTrue().Because($"ret msg: {ret.Msg}");
+            var generatedYaml = await File.ReadAllTextAsync(tempOutputYaml);
+            var parsed = YamlUtils.FromYaml<Dictionary<string, object>>(generatedYaml)!;
+            var tunDict = (Dictionary<object, object>)parsed["tun"];
+
+            await tunDict["stack"].ToString().Should().BeEqualTo("mixed");
+            await tunDict["mtu"].ToString().Should().BeEqualTo("1500");
+
+            var inet6List = ((List<object>)tunDict["inet6-address"]).Select(x => x.ToString()!).ToList();
+            await inet6List.Should().Contain("fdfe:dcba:9876::1/126");
+
+            var excludeList = ((List<object>)tunDict["route-exclude-address"]).Select(x => x.ToString()!).ToList();
+            await excludeList.Should().BeEquivalentTo(["10.88.0.0/16"]);
+        }
+        finally
+        {
+            if (File.Exists(tempInputYaml))
+            {
+                File.Delete(tempInputYaml);
+            }
+            if (File.Exists(tempOutputYaml))
+            {
+                File.Delete(tempOutputYaml);
+            }
+        }
+    }
+
     private static async Task EnsureCoreContextSqliteTablesAsync(Config config)
     {
         SQLiteHelper.Instance.CreateTable<FullConfigTemplateItem>();

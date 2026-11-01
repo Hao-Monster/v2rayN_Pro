@@ -112,6 +112,7 @@ public partial class StatusBarViewModel : MyReactiveObject
         BlSystemProxyPacVisible = Utils.IsWindows();
         BlIsNonWindows = Utils.IsNonWindows();
 
+        var startupTunConfigDirty = false;
         if (_config.TunModeItem.EnableTun && AllowEnableTun())
         {
             EnableTun = true;
@@ -119,7 +120,13 @@ public partial class StatusBarViewModel : MyReactiveObject
             if (startupTransition.TargetSysProxy is { } targetSysProxy)
             {
                 _config.SystemProxyItem.SysProxyType = targetSysProxy;
+                startupTunConfigDirty = true;
+            }
+            if (startupTransition.SavedBeforeTun is not null
+                && _config.TunModeItem.LastSysProxyBeforeTun != startupTransition.SavedBeforeTun)
+            {
                 TunTakeoverPolicy.CommitTunSysProxyTransition(_config, true, startupTransition.SavedBeforeTun);
+                startupTunConfigDirty = true;
             }
         }
         else
@@ -129,6 +136,7 @@ public partial class StatusBarViewModel : MyReactiveObject
             if (hadTunSaved)
             {
                 TunTakeoverPolicy.RecoverStartupSysProxyWhenTunUnavailable(_config);
+                startupTunConfigDirty = true;
             }
         }
 
@@ -222,11 +230,15 @@ public partial class StatusBarViewModel : MyReactiveObject
 
         #endregion AppEvents
 
-        _ = Init();
+        _ = Init(startupTunConfigDirty);
     }
 
-    private async Task Init()
+    private async Task Init(bool persistStartupTunConfig)
     {
+        if (persistStartupTunConfig)
+        {
+            await ConfigHandler.SaveConfig(_config);
+        }
         await ConfigHandler.InitBuiltinRouting(_config);
         await RefreshRoutingsMenu();
         await InboundDisplayStatus();
@@ -511,8 +523,12 @@ public partial class StatusBarViewModel : MyReactiveObject
             // When running as a non-administrator, reboot to administrator mode
             if (Utils.IsWindows())
             {
-                _config.TunModeItem.EnableTun = false;
-                await AppManager.Instance.RebootAsAdmin();
+                await ConfigHandler.SaveConfig(_config);
+                if (!await AppManager.Instance.RebootAsAdmin())
+                {
+                    _config.TunModeItem.EnableTun = EnableTun = false;
+                    await ConfigHandler.SaveConfig(_config);
+                }
                 return;
             }
             else
@@ -520,7 +536,7 @@ public partial class StatusBarViewModel : MyReactiveObject
                 var password = await PasswordInputInteraction.HandleSafe(RxVoid.Default);
                 if (password.IsNullOrEmpty())
                 {
-                    _config.TunModeItem.EnableTun = false;
+                    _config.TunModeItem.EnableTun = EnableTun = false;
                     return;
                 }
             }
@@ -541,6 +557,29 @@ public partial class StatusBarViewModel : MyReactiveObject
 
         await ConfigHandler.SaveConfig(_config);
         ReloadRequested.Publish();
+    }
+
+    public async Task SyncSysProxyAfterTunSettingChangedAsync()
+    {
+        if (!_config.TunModeItem.EnableTun)
+        {
+            return;
+        }
+
+        var plan = TunTakeoverPolicy.PlanLiveTunSettingsSysProxySync(_config);
+        if (plan.TargetSysProxy is { } targetSysProxy)
+        {
+            if (await SetListenerType(targetSysProxy))
+            {
+                TunTakeoverPolicy.CommitLiveTunSettingsSysProxySync(_config, plan.SavedBeforeTun);
+                await ConfigHandler.SaveConfig(_config);
+            }
+        }
+        else if (_config.TunModeItem.LastSysProxyBeforeTun != plan.SavedBeforeTun)
+        {
+            TunTakeoverPolicy.CommitLiveTunSettingsSysProxySync(_config, plan.SavedBeforeTun);
+            await ConfigHandler.SaveConfig(_config);
+        }
     }
 
     private bool AllowEnableTun()

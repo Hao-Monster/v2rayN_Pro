@@ -50,13 +50,17 @@ public partial class CoreConfigV2rayService
                         ip = [.. Global.TunEncryptedDnsGuardIps],
                         outboundTag = Global.BlockTag,
                     });
-                    _coreConfig.routing.rules.Add(new()
+                    var guardDomains = TunTakeoverPolicy.GetDnsGuardBlockedDomains(context);
+                    if (guardDomains.Count > 0)
                     {
-                        inboundTag = ["tun"],
-                        port = "443",
-                        domain = [.. Global.TunEncryptedDnsGuardDomains.Select(d => $"domain:{d}")],
-                        outboundTag = Global.BlockTag,
-                    });
+                        _coreConfig.routing.rules.Add(new()
+                        {
+                            inboundTag = ["tun"],
+                            port = "443",
+                            domain = [.. guardDomains.Select(d => $"domain:{d}")],
+                            outboundTag = Global.BlockTag,
+                        });
+                    }
                 }
             }
             if (_coreConfig.routing?.rules != null)

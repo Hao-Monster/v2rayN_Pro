@@ -111,6 +111,38 @@ public class CoreConfigClashService(Config config, bool isTunEnabled)
                             tunDict["mtu"] = config.TunModeItem.Mtu > 0 ? config.TunModeItem.Mtu : Global.DefaultTunMtu;
                             tunDict["auto-route"] = config.TunModeItem.AutoRoute;
                             tunDict["strict-route"] = config.TunModeItem.StrictRoute;
+
+                            if (!config.TunModeItem.IPv4Address.IsNullOrEmpty())
+                            {
+                                tunDict["inet4-address"] = new List<string> { config.TunModeItem.IPv4Address };
+                            }
+
+                            if (config.TunModeItem.EnableIPv6Address)
+                            {
+                                var ipv6Address = config.TunModeItem.IPv6Address.NullIfEmpty()
+                                    ?? Global.TunIPv6Address.First();
+                                tunDict["inet6-address"] = new List<string> { ipv6Address };
+                            }
+                            else
+                            {
+                                tunDict.Remove("inet6-address");
+                            }
+
+                            if (config.TunModeItem.RouteExcludeAddress is { Count: > 0 })
+                            {
+                                var validRouteExcludes = new List<string>();
+                                foreach (var cidr in config.TunModeItem.RouteExcludeAddress)
+                                {
+                                    if (IPNetwork2.TryParse(cidr, out _))
+                                    {
+                                        validRouteExcludes.Add(cidr);
+                                    }
+                                }
+                                if (validRouteExcludes.Count > 0)
+                                {
+                                    tunDict["route-exclude-address"] = validRouteExcludes;
+                                }
+                            }
                         }
                         fileContent["tun"] = tunObj;
                     }

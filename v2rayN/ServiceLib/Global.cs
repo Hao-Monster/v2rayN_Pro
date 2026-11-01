@@ -865,6 +865,7 @@ public class Global
 
     public static readonly IReadOnlyList<string> TunEncryptedDnsGuardDomains =
     [
+        "resolver.arpa",
         "dns.alidns.com",
         "doh.pub",
         "dot.pub",

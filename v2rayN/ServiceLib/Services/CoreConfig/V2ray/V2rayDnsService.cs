@@ -416,7 +416,14 @@ public partial class CoreConfigV2rayService
     private void FillDnsHosts(Dns4Ray dnsItem)
     {
         var simpleDNSItem = context.SimpleDnsItem;
-        if (simpleDNSItem.AddCommonHosts == false && simpleDNSItem.UseSystemHosts == false && simpleDNSItem.Hosts.IsNullOrEmpty())
+        var guardBlockedDomains = context.IsTunEnabled && _config.TunModeItem.BlockEncryptedDnsBypass
+            ? TunTakeoverPolicy.GetDnsGuardBlockedDomains(context, excludeCoreDnsDomains: true)
+            : [];
+
+        if (simpleDNSItem.AddCommonHosts == false
+            && simpleDNSItem.UseSystemHosts == false
+            && simpleDNSItem.Hosts.IsNullOrEmpty()
+            && guardBlockedDomains.Count == 0)
         {
             return;
         }
@@ -427,6 +434,24 @@ public partial class CoreConfigV2rayService
                 kvp => kvp.Key,
                 kvp => (object)kvp.Value
             );
+        }
+
+        if (guardBlockedDomains.Count > 0)
+        {
+            var predefinedCollisions = dnsItem.hosts.Keys
+                .Where(hostKey => guardBlockedDomains.Any(blocked =>
+                    string.Equals(hostKey, blocked, StringComparison.OrdinalIgnoreCase)
+                    || hostKey.EndsWith("." + blocked, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            foreach (var key in predefinedCollisions)
+            {
+                dnsItem.hosts.Remove(key);
+            }
+
+            foreach (var blockedDomain in guardBlockedDomains)
+            {
+                dnsItem.hosts[$"domain:{blockedDomain}"] = "0.0.0.0";
+            }
         }
 
         if (simpleDNSItem.UseSystemHosts == true)
