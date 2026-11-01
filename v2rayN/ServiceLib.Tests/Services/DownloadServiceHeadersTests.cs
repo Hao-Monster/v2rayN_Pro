@@ -173,6 +173,10 @@ public class DownloadServiceHeadersTests
             {
                 // Stop may close the listener between the loop's cancellation check and Accept.
             }
+            catch (SocketException) when (_cancellation.IsCancellationRequested)
+            {
+                // On Windows IOCP, _listener.Stop() racing with CancelAsync can surface ERROR_OPERATION_ABORTED (995).
+            }
             finally
             {
                 _cancellation.Dispose();
