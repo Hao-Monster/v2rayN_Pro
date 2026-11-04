@@ -19,4 +19,3 @@ public class StarGridLengthConverter : IValueConverter
         return null;
     }
 }
-

@@ -217,4 +217,3 @@ public class SubscriptionCardItemTests
         await card.UntestedSegmentWeight.Should().BeEqualTo(1);
     }
 }
-

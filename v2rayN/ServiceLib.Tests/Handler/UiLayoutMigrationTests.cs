@@ -82,4 +82,3 @@ public class UiLayoutMigrationTests
         await uiItem.MainGirdOrientation.Should().BeEqualTo(EGirdOrientation.Tab);
     }
 }
-
