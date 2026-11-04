@@ -151,11 +151,6 @@ public partial class ProfilesView
               .ObserveOn(RxSchedulers.MainThreadScheduler)
               .Subscribe(_ => StorageUI())
               .DisposeWith(disposables);
-            AppEvents.AddSubscriptionRequested
-                .AsObservable()
-                .ObserveOn(RxSchedulers.MainThreadScheduler)
-                .Subscribe(async _ => await ViewModel.AddSubscription())
-                .DisposeWith(disposables);
         });
 
         RestoreUI();

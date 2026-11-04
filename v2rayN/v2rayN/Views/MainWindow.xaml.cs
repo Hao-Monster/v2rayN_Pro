@@ -67,6 +67,12 @@ public partial class MainWindow
 
         this.WhenActivated(disposables =>
         {
+            AppEvents.AddSubscriptionRequested
+                .AsObservable()
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
+                .Subscribe(async _ => await ViewModel.ProfilesViewModel.AddSubscription())
+                .DisposeWith(disposables);
+
             //servers
             this.BindCommand(ViewModel, vm => vm.AddVmessServerCmd, v => v.menuAddVmessServer).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddVlessServerCmd, v => v.menuAddVlessServer).DisposeWith(disposables);
