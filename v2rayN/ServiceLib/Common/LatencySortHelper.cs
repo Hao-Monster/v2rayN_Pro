@@ -16,6 +16,15 @@ internal static class LatencySortHelper
             .ThenBy(delaySelector);
     }
 
+    public static List<string> ReachableNodeIds(IReadOnlyDictionary<string, int> delays)
+    {
+        return delays.Where(item => item.Value > 0)
+            .OrderBy(item => item.Value)
+            .ThenBy(item => item.Key, StringComparer.Ordinal)
+            .Select(item => item.Key)
+            .ToList();
+    }
+
     public static bool ShouldSwitchToCandidate(
         bool currentExists,
         int currentDelay,

@@ -3,6 +3,7 @@ namespace ServiceLib.Handler;
 internal sealed class SubscriptionSnapshot
 {
     public string SubId { get; set; } = string.Empty;
+    public string? SourceHash { get; set; }
     public string? ActiveIndexId { get; set; }
     public long CreatedAt { get; set; }
     public List<ProfileItem> Profiles { get; set; } = [];
@@ -14,6 +15,12 @@ public static class SubscriptionSnapshotHandler
     public static async Task<bool> CaptureAsync(Config config, string subId)
     {
         if (subId.IsNullOrEmpty())
+        {
+            return false;
+        }
+
+        var subscription = await AppManager.Instance.GetSubItem(subId);
+        if (subscription is null)
         {
             return false;
         }
@@ -43,6 +50,7 @@ public static class SubscriptionSnapshotHandler
         var snapshot = new SubscriptionSnapshot
         {
             SubId = subId,
+            SourceHash = SourceHash(subscription),
             ActiveIndexId = activeIndexId,
             CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             Profiles = profiles,
@@ -61,7 +69,8 @@ public static class SubscriptionSnapshotHandler
     public static async Task<bool> RestoreAsync(Config config, string subId)
     {
         var path = GetSnapshotPath(subId);
-        if (!File.Exists(path))
+        var subscription = await AppManager.Instance.GetSubItem(subId);
+        if (!File.Exists(path) || subscription is null)
         {
             return false;
         }
@@ -69,7 +78,7 @@ public static class SubscriptionSnapshotHandler
         try
         {
             var snapshot = JsonUtils.Deserialize<SubscriptionSnapshot>(await File.ReadAllTextAsync(path));
-            if (snapshot is null || snapshot.SubId != subId || snapshot.Profiles.Count == 0)
+            if (snapshot is null || snapshot.SubId != subId || snapshot.SourceHash != SourceHash(subscription) || snapshot.Profiles.Count == 0)
             {
                 return false;
             }
@@ -101,6 +110,50 @@ public static class SubscriptionSnapshotHandler
             return false;
         }
     }
+
+    public static DateTimeOffset? TryGetSnapshotTimestamp(string? subId)
+    {
+        if (subId.IsNullOrEmpty())
+        {
+            return null;
+        }
+
+        try
+        {
+            var path = GetSnapshotPath(subId);
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var lastWriteUtc = File.GetLastWriteTimeUtc(path);
+            if (lastWriteUtc.Year < 2020)
+            {
+                return null;
+            }
+
+            return new DateTimeOffset(DateTime.SpecifyKind(lastWriteUtc, DateTimeKind.Utc)).ToLocalTime();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static void Invalidate(string subId)
+    {
+        try
+        {
+            File.Delete(GetSnapshotPath(subId));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // No snapshot has been saved yet.
+        }
+    }
+
+    private static string SourceHash(SubItem sub) =>
+        Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { sub.Url, sub.MoreUrl })));
 
     internal static string GetSnapshotFileName(string subId)
     {

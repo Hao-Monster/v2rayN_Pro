@@ -17,12 +17,16 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
     private bool _hasWorkspaceBackground;
     private bool _blCloseByUser = false;
     private bool _startupSubscriptionPromptChecked;
+    private EMainWorkspacePage _currentWorkspacePage;
+    private EMainWorkspacePage _lastSavedWorkspacePage;
 
     public MainWindow()
     {
         InitializeComponent();
 
         _config = AppManager.Instance.Config;
+        _currentWorkspacePage = _config.UiItem.MainWorkspacePage;
+        _lastSavedWorkspacePage = _currentWorkspacePage;
         _manager = new WindowNotificationManager(TopLevel.GetTopLevel(this)) { MaxItems = 3, Position = NotificationPosition.TopRight };
 
         KeyDown += MainWindow_KeyDown;
@@ -42,9 +46,12 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
         btnHome.Click += async (_, _) => await SetMainWorkspacePage(EMainWorkspacePage.Home);
         btnAddSubscription.Click += async (_, _) => await OpenAddSubscriptionAsync();
         btnProxy.Click += async (_, _) => await SetMainWorkspacePage(EMainWorkspacePage.Proxy);
+        btnClashProxies.Click += async (_, _) => await SetMainWorkspacePage(EMainWorkspacePage.ClashProxies);
+        btnClashConnections.Click += async (_, _) => await SetMainWorkspacePage(EMainWorkspacePage.ClashConnections);
+        btnLogs.Click += async (_, _) => await SetMainWorkspacePage(EMainWorkspacePage.Logs);
 
         tabSubscriptionInfo.Content ??= new SubscriptionInfoView();
-        ApplyMainWorkspacePage(_config.UiItem.MainWorkspacePage);
+        ApplyMainWorkspacePage(_currentWorkspacePage);
         ApplyWorkspaceBackground();
         var themeSettingView = new ThemeSettingView();
         themeSettingView.WorkspaceBackgroundRequested += async (_, _) => await OpenWorkspaceBackgroundSetting();
@@ -97,6 +104,34 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
             this.BindCommand(ViewModel, vm => vm.ReloadCmd, v => v.menuReload).DisposeWith(disposables);
             this.OneWayBind(ViewModel, vm => vm.BlReloadEnabled, v => v.menuReload.IsEnabled).DisposeWith(disposables);
             this.OneWayBind(ViewModel, vm => vm.BlNewUpdate, v => v.btnNewUpdate.IsVisible).DisposeWith(disposables);
+
+            this.WhenAnyValue(v => v.ViewModel.ShowClashUI, v => v.ViewModel.MainGirdOrientation)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
+                .Subscribe(tuple =>
+                {
+                    var (showClash, orientation) = tuple;
+                    var isTabMode = orientation == EGirdOrientation.Tab;
+
+                    btnLogs.IsVisible = isTabMode;
+                    btnClashProxies.IsVisible = isTabMode && showClash;
+                    btnClashConnections.IsVisible = isTabMode && showClash;
+
+                    if (!isTabMode && _currentWorkspacePage is EMainWorkspacePage.Logs or EMainWorkspacePage.ClashProxies or EMainWorkspacePage.ClashConnections)
+                    {
+                        ViewModel.TabMainSelectedIndex = _currentWorkspacePage switch
+                        {
+                            EMainWorkspacePage.ClashProxies when showClash => 1,
+                            EMainWorkspacePage.ClashConnections when showClash => 2,
+                            _ => 0,
+                        };
+                        _ = SetMainWorkspacePage(EMainWorkspacePage.Proxy);
+                    }
+                    else if (isTabMode && !showClash && _currentWorkspacePage is EMainWorkspacePage.ClashProxies or EMainWorkspacePage.ClashConnections)
+                    {
+                        _ = SetMainWorkspacePage(EMainWorkspacePage.Proxy);
+                    }
+                })
+                .DisposeWith(disposables);
 
             this.OneWayBind(ViewModel, vm => vm.StatusBarViewModel, v => v.contentStatusBarView.Content).DisposeWith(disposables);
 
@@ -451,29 +486,92 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
 
     private void ApplyMainWorkspacePage(EMainWorkspacePage page)
     {
+        _currentWorkspacePage = page;
         var showHome = page == EMainWorkspacePage.Home;
         workspaceHome.IsVisible = showHome;
         workspaceProxy.IsVisible = !showHome;
-        SetAccentClass(btnHome, showHome);
-        SetAccentClass(btnProxy, !showHome);
+
+        var orientation = ViewModel?.MainGirdOrientation ?? _config.UiItem.MainGirdOrientation;
+        if (orientation == EGirdOrientation.Tab)
+        {
+            var showClashProxies = !showHome && page == EMainWorkspacePage.ClashProxies;
+            var showClashConnections = !showHome && page == EMainWorkspacePage.ClashConnections;
+
+            tabProfiles2.IsVisible = !showHome && page == EMainWorkspacePage.Proxy;
+            tabMsgView2.IsVisible = !showHome && page == EMainWorkspacePage.Logs;
+            tabClashProxies2.IsVisible = showClashProxies;
+            tabClashConnections2.IsVisible = showClashConnections;
+
+            if (showClashProxies)
+            {
+                if (tabClashProxies2.Content is null && ViewModel is not null)
+                {
+                    tabClashProxies2.Content = ViewModel.ClashProxiesViewModel;
+                }
+            }
+            else if (tabClashProxies2.Content is not null)
+            {
+                tabClashProxies2.Content = null;
+            }
+
+            if (showClashConnections)
+            {
+                if (tabClashConnections2.Content is null && ViewModel is not null)
+                {
+                    tabClashConnections2.Content = ViewModel.ClashConnectionsViewModel;
+                }
+            }
+            else if (tabClashConnections2.Content is not null)
+            {
+                tabClashConnections2.Content = null;
+            }
+        }
+        else if (!showHome && ViewModel != null)
+        {
+            switch (page)
+            {
+                case EMainWorkspacePage.Logs:
+                    ViewModel.TabMainSelectedIndex = 0;
+                    break;
+                case EMainWorkspacePage.ClashProxies:
+                    ViewModel.TabMainSelectedIndex = 1;
+                    break;
+                case EMainWorkspacePage.ClashConnections:
+                    ViewModel.TabMainSelectedIndex = 2;
+                    break;
+            }
+        }
+
+        SetAccentClass(btnHome, page == EMainWorkspacePage.Home);
+        SetAccentClass(btnProxy, page == EMainWorkspacePage.Proxy);
+        SetAccentClass(btnClashProxies, page == EMainWorkspacePage.ClashProxies);
+        SetAccentClass(btnClashConnections, page == EMainWorkspacePage.ClashConnections);
+        SetAccentClass(btnLogs, page == EMainWorkspacePage.Logs);
         UpdateWorkspaceBackgroundOverlay(page);
     }
 
     private async Task SetMainWorkspacePage(EMainWorkspacePage page)
     {
-        if (_config.UiItem.MainWorkspacePage == page)
-        {
-            ApplyMainWorkspacePage(page);
-            return;
-        }
-
-        _config.UiItem.MainWorkspacePage = page;
         ApplyMainWorkspacePage(page);
+
+        var persistedPage = page is EMainWorkspacePage.ClashProxies or EMainWorkspacePage.ClashConnections
+            ? EMainWorkspacePage.Proxy
+            : page;
+        _config.UiItem.MainWorkspacePage = persistedPage;
 
         await _workspacePageSaveLock.WaitAsync();
         try
         {
-            await ConfigHandler.SaveConfig(_config);
+            var targetPage = _config.UiItem.MainWorkspacePage;
+            if (_lastSavedWorkspacePage == targetPage)
+            {
+                return;
+            }
+
+            if (await ConfigHandler.SaveConfig(_config) == 0)
+            {
+                _lastSavedWorkspacePage = targetPage;
+            }
         }
         finally
         {
@@ -524,7 +622,7 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
             Logging.SaveLog($"Workspace background file was not found. Configured={uiItem.WorkspaceBackgroundImage}, Resolved={imagePath}.");
         }
 
-        UpdateWorkspaceBackgroundOverlay(_config.UiItem.MainWorkspacePage);
+        UpdateWorkspaceBackgroundOverlay(_currentWorkspacePage);
         UpdateWorkspaceBackgroundAnimationState();
     }
 
@@ -555,15 +653,28 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
 
     private void StorageUI()
     {
-        ConfigHandler.SaveWindowSizeItem(_config, GetType().Name, Width, Height);
+        if (Width > 0 && Height > 0)
+        {
+            ConfigHandler.SaveWindowSizeItem(_config, GetType().Name, Width, Height);
+        }
 
         if (_config.UiItem.MainGirdOrientation == EGirdOrientation.Horizontal)
         {
-            ConfigHandler.SaveMainGirdHeight(_config, gridMain.ColumnDefinitions[0].ActualWidth, gridMain.ColumnDefinitions[2].ActualWidth);
+            var leftWidth = gridMain.ColumnDefinitions[0].ActualWidth;
+            var rightWidth = gridMain.ColumnDefinitions[2].ActualWidth;
+            if (leftWidth > 0 && rightWidth > 0)
+            {
+                ConfigHandler.SaveMainGirdHeight(_config, leftWidth, rightWidth);
+            }
         }
         else if (_config.UiItem.MainGirdOrientation == EGirdOrientation.Vertical)
         {
-            ConfigHandler.SaveMainGirdHeight(_config, gridMain1.RowDefinitions[0].ActualHeight, gridMain1.RowDefinitions[2].ActualHeight);
+            var topHeight = gridMain1.RowDefinitions[0].ActualHeight;
+            var bottomHeight = gridMain1.RowDefinitions[2].ActualHeight;
+            if (topHeight > 0 && bottomHeight > 0)
+            {
+                ConfigHandler.SaveMainGirdHeight(_config, topHeight, bottomHeight);
+            }
         }
     }
 
@@ -604,14 +715,10 @@ public partial class MainWindow : WindowBase<MainWindowViewModel>
             default:
                 this.OneWayBind(ViewModel, vm => vm.ProfilesViewModel, v => v.tabProfiles2.Content).DisposeWith(currentLayoutDisposables);
                 this.OneWayBind(ViewModel, vm => vm.MsgViewModel, v => v.tabMsgView2.Content).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ClashProxiesViewModel, v => v.tabClashProxies2.Content).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ClashConnectionsViewModel, v => v.tabClashConnections2.Content).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashProxies2.IsVisible).DisposeWith(currentLayoutDisposables);
-                this.OneWayBind(ViewModel, vm => vm.ShowClashUI, v => v.tabClashConnections2.IsVisible).DisposeWith(currentLayoutDisposables);
-                this.Bind(ViewModel, vm => vm.TabMainSelectedIndex, v => v.tabMain2.SelectedIndex).DisposeWith(currentLayoutDisposables);
                 break;
         }
 
+        ApplyMainWorkspacePage(_currentWorkspacePage);
         RestoreUI();
     }
 

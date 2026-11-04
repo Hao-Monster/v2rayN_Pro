@@ -5,337 +5,926 @@
     xmlns:conv="using:v2rayN.Desktop.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="clr-namespace:v2rayN.Desktop.DesignData"
+    xmlns:dto="clr-namespace:ServiceLib.Models.Dto;assembly=ServiceLib"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="clr-namespace:ServiceLib.Models.Entities;assembly=ServiceLib"
     xmlns:resx="clr-namespace:ServiceLib.Resx;assembly=ServiceLib"
     xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
     x:Name="Root"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
+    d:DesignHeight="680"
+    d:DesignWidth="1080"
     x:DataType="vms:ProfilesViewModel"
     Background="Transparent"
     Design.DataContext="{x:Static dd:DesignData.Profiles}"
     mc:Ignorable="d">
     <UserControl.Resources>
         <conv:DelayColorConverter x:Key="DelayColorConverter" />
+        <conv:StarGridLengthConverter x:Key="StarGridLengthConverter" />
     </UserControl.Resources>
-    <Grid>
-        <DockPanel>
-            <WrapPanel Margin="2" DockPanel.Dock="Top">
-                <ListBox
-                    x:Name="lstGroup"
-                    Margin="{StaticResource MarginLr4}"
-                    ItemsSource="{Binding SubItems}"
-                    Theme="{DynamicResource PureCardRadioGroupListBox}">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="models:SubItem">
-                            <StackPanel>
-                                <TextBlock Text="{Binding Remarks}" />
-                                <Border IsVisible="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}">
-                                    <TextBlock
-                                        MaxWidth="460"
-                                        Margin="0,2,0,0"
-                                        FontSize="10"
-                                        IsVisible="{Binding DataContext.HasSelectedSubscriptionTraffic, ElementName=Root}"
-                                        Opacity="0.72"
-                                        Text="{Binding DataContext.SelectedSubscriptionTraffic, ElementName=Root}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </Border>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
 
-                    <ListBox.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem x:Name="menuSubEdit" Header="{x:Static resx:ResUI.menuSubEdit}" />
-                            <MenuItem x:Name="menuSubAdd" Header="{x:Static resx:ResUI.menuSubAdd}" />
-                            <MenuItem x:Name="menuSubDelete" Header="{x:Static resx:ResUI.menuSubDelete}" />
-                        </ContextMenu>
-                    </ListBox.ContextMenu>
-                </ListBox>
+    <UserControl.Styles>
+        <Style Selector="Button.cardActionPill">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="#16888888" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Button.cardActionPill:pointerover /template/ ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="Background" Value="#243B82F6" />
+        </Style>
+        <Style Selector="Button.cardMiniLink">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="MinHeight" Value="20" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Margin" Value="0,0,5,4" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="#14888888" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Border.quotaBox">
+            <Setter Property="Background" Value="#1622C55E" />
+            <Setter Property="BorderBrush" Value="#4422C55E" />
+        </Style>
+        <Style Selector="Border.quotaBox.warn">
+            <Setter Property="Background" Value="#18F59E0B" />
+            <Setter Property="BorderBrush" Value="#50F59E0B" />
+        </Style>
+        <Style Selector="Border.quotaBox.danger">
+            <Setter Property="Background" Value="#18EF4444" />
+            <Setter Property="BorderBrush" Value="#55EF4444" />
+        </Style>
+        <Style Selector="Border.quotaRing">
+            <Setter Property="BorderBrush" Value="#22C55E" />
+        </Style>
+        <Style Selector="Border.quotaRing.warn">
+            <Setter Property="BorderBrush" Value="#F59E0B" />
+        </Style>
+        <Style Selector="Border.quotaRing.danger">
+            <Setter Property="BorderBrush" Value="#EF4444" />
+        </Style>
+        <Style Selector="TextBlock.quotaPct">
+            <Setter Property="Foreground" Value="#22C55E" />
+        </Style>
+        <Style Selector="TextBlock.quotaPct.warn">
+            <Setter Property="Foreground" Value="#F59E0B" />
+        </Style>
+        <Style Selector="TextBlock.quotaPct.danger">
+            <Setter Property="Foreground" Value="#EF4444" />
+        </Style>
+        <Style Selector="Border.quotaBarFill">
+            <Setter Property="Background" Value="#22C55E" />
+        </Style>
+        <Style Selector="Border.quotaBarFill.warn">
+            <Setter Property="Background" Value="#F59E0B" />
+        </Style>
+        <Style Selector="Border.quotaBarFill.danger">
+            <Setter Property="Background" Value="#EF4444" />
+        </Style>
+        <Style Selector="TextBlock.expireText">
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+        <Style Selector="TextBlock.expireText.soon">
+            <Setter Property="Foreground" Value="#F59E0B" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="TextBlock.expireText.expired">
+            <Setter Property="Foreground" Value="#EF4444" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+    </UserControl.Styles>
 
-                <Button
-                    x:Name="btnEditSub"
-                    Height="32"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLr4}"
-                    Classes="Success"
-                    Content="修改订阅"
-                    ToolTip.Tip="修改订阅" />
-                <Button
-                    x:Name="btnAddSub"
-                    Height="32"
-                    IsVisible="False"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLr4}"
-                    Classes="Success"
-                    Content="添加订阅"
-                    ToolTip.Tip="添加订阅" />
+    <DockPanel>
+        <!-- 页面顶栏：左标题与当前分组徽章 -> 右节点搜索框与调整列宽 -->
+        <Grid DockPanel.Dock="Top">
+            <Border
+                Background="{DynamicResource SemiColorBg1}"
+                BorderBrush="{DynamicResource SemiColorBorder}"
+                BorderThickness="0,0,0,1"
+                Opacity="0.86" />
+            <Grid Margin="16,10" ColumnDefinitions="Auto,*,Auto">
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Text="代理" />
 
+                <Border
+                    Grid.Column="1"
+                    Margin="10,0,12,0"
+                    Padding="10,3"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource SemiColorBg1}"
+                    BorderBrush="{DynamicResource SemiColorBorder}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    IsVisible="{Binding SelectedSub.Remarks, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                    Opacity="0.92">
+                    <TextBlock
+                        MaxWidth="260"
+                        FontSize="11"
+                        Opacity="0.84"
+                        Text="{Binding SelectedSub.Remarks}"
+                        TextTrimming="CharacterEllipsis" />
+                </Border>
+
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
                     <TextBox
                         x:Name="txtServerFilter"
-                        Width="200"
-                        Margin="{StaticResource MarginLr4}"
+                        Width="190"
                         VerticalContentAlignment="Center"
+                        AutomationProperties.Name="{x:Static resx:ResUI.MsgServerTitle}"
                         PlaceholderText="{x:Static resx:ResUI.MsgServerTitle}"
                         ToolTip.Tip="{x:Static resx:ResUI.MsgServerTitle}" />
 
-                <Button
-                    x:Name="btnAutofitColumnWidth"
-                    Height="32"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLr4}"
-                    Classes="Success"
-                    Content="调整列宽"
-                    ToolTip.Tip="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}" />
+                    <Button
+                        x:Name="btnAutofitColumnWidth"
+                        Height="32"
+                        MinWidth="84"
+                        AutomationProperties.Name="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}"
+                        Content="调整列宽"
+                        ToolTip.Tip="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
 
-                <Button
-                    x:Name="btnFastRealPing"
-                    Height="32"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLr4}"
-                    Classes="Success"
-                    Content="延迟测试"
-                    ToolTip.Tip="{x:Static resx:ResUI.menuFastRealPing}" />
-                <Button
-                    x:Name="menuMixedTestServer"
-                    Margin="{StaticResource MarginLr4}"
-                    Classes="IconButton Success"
-                    IsVisible="False"
-                    ToolTip.Tip="{x:Static resx:ResUI.menuMixedTestServer}">
-                    <Button.Content>
-                        <PathIcon Data="{StaticResource building_ping}" />
-                    </Button.Content>
-                </Button>
+        <!-- 主体区域：由左向右双栏 [ Col 0 纵向订阅分组栏 ] + [ Col 1 分隔条 ] + [ Col 2 右侧操作流与全高节点列表 ] -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition
+                    Width="280"
+                    MinWidth="210"
+                    MaxWidth="420" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            </WrapPanel>
-            <DataGrid
-                x:Name="lstProfiles"
-                AutoGenerateColumns="False"
-                Background="Transparent"
-                BorderThickness="1"
-                CanUserReorderColumns="True"
-                CanUserResizeColumns="True"
-                Classes.InsetContent="True"
-                GridLinesVisibility="All"
-                HeadersVisibility="All"
-                IsReadOnly="True"
-                ItemsSource="{Binding ProfileItems}">
-                <DataGrid.KeyBindings>
-                    <KeyBinding Command="{Binding Export2ShareUrlCmd}" Gesture="Ctrl+C" />
-                    <KeyBinding Command="{Binding SetDefaultServerCmd}" Gesture="Enter" />
-                </DataGrid.KeyBindings>
-                <DataGrid.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem
-                            x:Name="menuSetDefaultServer"
-                            Header="{x:Static resx:ResUI.menuSetDefaultServer}"
-                            InputGesture="Enter" />
-                        <MenuItem
-                            x:Name="menuEditServer"
-                            Header="{x:Static resx:ResUI.menuEditServer}"
-                            InputGesture="Ctrl+D" />
-                        <MenuItem x:Name="menuCopyServer" Header="{x:Static resx:ResUI.menuCopyServer}" />
-                        <MenuItem
-                            x:Name="menuRemoveServer"
-                            Header="{x:Static resx:ResUI.menuRemoveServer}"
-                            InputGesture="Back" />
-                        <MenuItem x:Name="menuRemoveDuplicateServer" Header="{x:Static resx:ResUI.menuRemoveDuplicateServer}" />
-                        <MenuItem x:Name="menuRemoveInvalidServerResult" Header="{x:Static resx:ResUI.menuRemoveInvalidServerResult}" />
-                        <MenuItem
-                            x:Name="menuGenerateCloudflareBestNodes"
-                            Header="以此节点自动生成最优节点"
-                            IsVisible="False" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuTcpingServer"
-                            Header="{x:Static resx:ResUI.menuTcpingServer}"
-                            InputGesture="Ctrl+O" />
-                        <MenuItem
-                            x:Name="menuRealPingServer"
-                            Header="{x:Static resx:ResUI.menuRealPingServer}"
-                            InputGesture="Ctrl+R" />
-                        <MenuItem
-                            x:Name="menuSpeedServer"
-                            Header="{x:Static resx:ResUI.menuSpeedServer}"
-                            InputGesture="Ctrl+T" />
-                        <MenuItem x:Name="menuUdpTestServer" Header="{x:Static resx:ResUI.menuUdpTestServer}" />
-                        <MenuItem x:Name="menuSortServerResult" Header="{x:Static resx:ResUI.menuSortServerResult}" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuMoveToGroup"
-                            Header="{x:Static resx:ResUI.menuMoveToGroup}"
-                            ItemsSource="{Binding DataContext.SubItems, ElementName=Root}">
-                            <MenuItem.ItemTemplate>
-                                <DataTemplate>
-                                    <MenuItem
-                                        Command="{Binding DataContext.MoveToGroupCmd, ElementName=Root}"
-                                        CommandParameter="{Binding}"
-                                        Header="{Binding Remarks}" />
+            <!-- Col 0: 纵向订阅分组卡片栏 -->
+            <Border
+                Grid.Column="0"
+                BorderBrush="{DynamicResource SemiColorBorder}"
+                BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border Padding="14,10,14,6" DockPanel.Dock="Top">
+                        <TextBlock
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Opacity="0.68"
+                            Text="全部配置" />
+                    </Border>
+
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ListBox
+                            x:Name="lstGroup"
+                            Margin="8,2,8,10"
+                            AutomationProperties.Name="{x:Static resx:ResUI.menuSubscription}"
+                            ItemsSource="{Binding SubscriptionCards}"
+                            Theme="{DynamicResource PureCardRadioGroupListBox}">
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem">
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Margin" Value="0,4" />
+                                    <Setter Property="Padding" Value="12,11" />
+                                    <Setter Property="CornerRadius" Value="10" />
+                                </Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="dto:SubscriptionCardItem">
+                                    <StackPanel>
+                                        <!-- Row 1: 标题与右上角更新订阅胶囊按钮 -->
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                MaxLines="2"
+                                                VerticalAlignment="Center"
+                                                FontSize="13.5"
+                                                FontWeight="Bold"
+                                                LineHeight="18"
+                                                Text="{Binding Remarks}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="Wrap"
+                                                ToolTip.Tip="{Binding HeaderToolTip}" />
+                                            <Button
+                                                Grid.Column="1"
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Top"
+                                                AutomationProperties.Name="{Binding UpdateButtonText}"
+                                                Classes="cardActionPill"
+                                                Command="{Binding DataContext.UpdateSubscriptionCardCmd, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                IsEnabled="{Binding CanUpdateSubscription}"
+                                                IsVisible="{Binding ShowUpdateButton}"
+                                                ToolTip.Tip="{Binding UpdateButtonText}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <PathIcon
+                                                        Width="11"
+                                                        Height="11"
+                                                        VerticalAlignment="Center"
+                                                        Data="{StaticResource card_sync}" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontWeight="Medium"
+                                                        Text="{Binding UpdateButtonText}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+
+                                        <!-- Row 2: 状态与属性徽章 -->
+                                        <WrapPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                            <Border
+                                                Margin="0,0,5,4"
+                                                Padding="7,2"
+                                                Background="#223B82F6"
+                                                BorderBrush="#663B82F6"
+                                                BorderThickness="1"
+                                                CornerRadius="9"
+                                                IsVisible="{Binding IsActiveConfig}">
+                                                <TextBlock
+                                                    FontSize="10.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{DynamicResource SemiColorPrimary}"
+                                                    Text="活动配置" />
+                                            </Border>
+
+                                            <Border
+                                                Margin="0,0,5,4"
+                                                Padding="7,2"
+                                                Background="#16888888"
+                                                BorderBrush="{DynamicResource SemiColorBorder}"
+                                                BorderThickness="1"
+                                                CornerRadius="9">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <PathIcon
+                                                        Width="10"
+                                                        Height="10"
+                                                        VerticalAlignment="Center"
+                                                        Data="{StaticResource card_sync}"
+                                                        Opacity="0.8" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10.5"
+                                                        Opacity="0.88"
+                                                        Text="{Binding UpdateModeBadgeText}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border
+                                                Margin="0,0,5,4"
+                                                Padding="7,2"
+                                                Background="#22EF4444"
+                                                BorderBrush="#66EF4444"
+                                                BorderThickness="1"
+                                                CornerRadius="9"
+                                                IsVisible="{Binding IsDisabled}">
+                                                <TextBlock
+                                                    FontSize="10.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="#EF4444"
+                                                    Text="已禁用" />
+                                            </Border>
+
+                                            <Button
+                                                Classes="cardMiniLink"
+                                                Command="{Binding DataContext.OpenSubscriptionUrlCmd, ElementName=Root}"
+                                                CommandParameter="{Binding ProfileWebPageUrl}"
+                                                IsVisible="{Binding HasProfileWebPageUrl}"
+                                                ToolTip.Tip="{Binding ProfileWebPageUrl}">
+                                                <TextBlock VerticalAlignment="Center" Text="🌐 官网" />
+                                            </Button>
+
+                                            <Button
+                                                Classes="cardMiniLink"
+                                                Command="{Binding DataContext.OpenSubscriptionUrlCmd, ElementName=Root}"
+                                                CommandParameter="{Binding SupportUrl}"
+                                                IsVisible="{Binding HasSupportUrl}"
+                                                ToolTip.Tip="{Binding SupportUrl}">
+                                                <TextBlock VerticalAlignment="Center" Text="🎧 客服" />
+                                            </Button>
+                                        </WrapPanel>
+
+                                        <!-- Row 3 & 4: 流量配额与上下行明细 -->
+                                        <StackPanel Margin="0,4,0,0" IsVisible="{Binding HasTrafficSection}">
+                                            <Border
+                                                Padding="8,6"
+                                                BorderThickness="1"
+                                                Classes="quotaBox"
+                                                Classes.danger="{Binding IsQuotaDanger}"
+                                                Classes.warn="{Binding IsQuotaWarning}"
+                                                CornerRadius="7"
+                                                IsVisible="{Binding HasQuotaLimit}">
+                                                <StackPanel>
+                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                        <Border
+                                                            Grid.Column="0"
+                                                            Width="9"
+                                                            Height="9"
+                                                            VerticalAlignment="Center"
+                                                            BorderThickness="1.8"
+                                                            Classes="quotaRing"
+                                                            Classes.danger="{Binding IsQuotaDanger}"
+                                                            Classes.warn="{Binding IsQuotaWarning}"
+                                                            CornerRadius="4.5" />
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            Margin="6,0,6,0"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11.5"
+                                                            FontWeight="SemiBold"
+                                                            Text="{Binding QuotaRemainingText}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="2"
+                                                            VerticalAlignment="Center"
+                                                            Classes="quotaPct"
+                                                            Classes.danger="{Binding IsQuotaDanger}"
+                                                            Classes.warn="{Binding IsQuotaWarning}"
+                                                            FontSize="11"
+                                                            FontWeight="Bold"
+                                                            Text="{Binding QuotaPercentText}" />
+                                                    </Grid>
+                                                    <Border
+                                                        Height="3.5"
+                                                        Margin="0,5,0,0"
+                                                        Background="#28888888"
+                                                        ClipToBounds="True"
+                                                        CornerRadius="1.75">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="{Binding QuotaFilledWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                                <ColumnDefinition Width="{Binding QuotaEmptyWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border
+                                                                Grid.Column="0"
+                                                                Classes="quotaBarFill"
+                                                                Classes.danger="{Binding IsQuotaDanger}"
+                                                                Classes.warn="{Binding IsQuotaWarning}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <StackPanel
+                                                IsVisible="{Binding ShowUnlimitedTrafficRow}"
+                                                Orientation="Horizontal"
+                                                Spacing="5">
+                                                <PathIcon
+                                                    Width="14"
+                                                    Height="14"
+                                                    VerticalAlignment="Center"
+                                                    Data="{StaticResource card_infinity}"
+                                                    Foreground="{DynamicResource SemiColorPrimary}" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="Medium"
+                                                    Text="{Binding UnlimitedTrafficText}" />
+                                            </StackPanel>
+
+                                            <TextBlock
+                                                Margin="0,4,0,0"
+                                                FontSize="11"
+                                                LineHeight="15.5"
+                                                Opacity="0.8"
+                                                Text="{Binding TrafficDetailText}"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <!-- Row 5 & 6: 到期时间与同步时间 -->
+                                        <StackPanel Margin="0,5,0,0" IsVisible="{Binding HasSubscriptionMeta}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <PathIcon
+                                                    Grid.Column="0"
+                                                    Width="12"
+                                                    Height="12"
+                                                    Margin="0,1,5,0"
+                                                    VerticalAlignment="Top"
+                                                    Data="{StaticResource card_verified}"
+                                                    Opacity="0.74" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    Classes="expireText"
+                                                    Classes.expired="{Binding IsExpired}"
+                                                    Classes.soon="{Binding IsExpiringSoon}"
+                                                    FontSize="11"
+                                                    Text="{Binding ExpireText}"
+                                                    TextWrapping="Wrap" />
+                                            </Grid>
+
+                                            <Grid Margin="0,3,0,0" ColumnDefinitions="Auto,*">
+                                                <PathIcon
+                                                    Grid.Column="0"
+                                                    Width="12"
+                                                    Height="12"
+                                                    Margin="0,1,5,0"
+                                                    VerticalAlignment="Top"
+                                                    Data="{StaticResource card_clock}"
+                                                    Opacity="0.74" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    FontSize="11"
+                                                    Opacity="0.82"
+                                                    Text="{Binding SyncTimeText}"
+                                                    TextWrapping="Wrap" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- Row 7: 公告与备注内嵌卡片 -->
+                                        <Border
+                                            Margin="0,7,0,0"
+                                            Padding="8,6"
+                                            Background="#16888888"
+                                            BorderBrush="{DynamicResource SemiColorBorder}"
+                                            BorderThickness="1"
+                                            CornerRadius="7"
+                                            IsVisible="{Binding HasNoteBox}"
+                                            ToolTip.Tip="{Binding NoteBoxToolTip}">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <PathIcon
+                                                    Grid.Column="0"
+                                                    Width="13"
+                                                    Height="13"
+                                                    Margin="0,2,6,0"
+                                                    VerticalAlignment="Top"
+                                                    Data="{StaticResource card_announce}"
+                                                    Foreground="{DynamicResource SemiColorPrimary}" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    MaxLines="3"
+                                                    FontSize="11"
+                                                    LineHeight="15.5"
+                                                    Opacity="0.86"
+                                                    Text="{Binding NoteBoxText}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="Wrap" />
+                                            </Grid>
+                                        </Border>
+
+                                        <TextBlock
+                                            Margin="0,5,0,0"
+                                            FontSize="10.5"
+                                            IsVisible="{Binding HasExtraConfig}"
+                                            Opacity="0.72"
+                                            Text="{Binding ExtraConfigText}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip.Tip="{Binding ExtraConfigText}" />
+
+                                        <!-- Row 8: 分隔线 + 节点可用率、中位延迟、最近测速与三色健康条 -->
+                                        <Border
+                                            Height="1"
+                                            Margin="0,8,0,7"
+                                            Background="{DynamicResource SemiColorBorder}"
+                                            Opacity="0.65" />
+
+                                        <StackPanel IsVisible="{Binding HasNodeStats}">
+                                            <TextBlock
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding NodeCountsText}" />
+                                            <TextBlock
+                                                Margin="0,2,0,0"
+                                                FontSize="11"
+                                                Opacity="0.86"
+                                                Text="{Binding MedianDelayText}" />
+                                            <TextBlock
+                                                Margin="0,2,0,0"
+                                                FontSize="10.5"
+                                                Opacity="0.74"
+                                                Text="{Binding LastSpeedtestText}"
+                                                TextWrapping="Wrap" />
+                                            <Border
+                                                Height="5"
+                                                Margin="0,6,0,0"
+                                                Background="#28888888"
+                                                ClipToBounds="True"
+                                                CornerRadius="2.5"
+                                                ToolTip.Tip="{Binding HealthBarToolTip}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{Binding FastNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                        <ColumnDefinition Width="{Binding MediumNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                        <ColumnDefinition Width="{Binding FailedNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                        <ColumnDefinition Width="{Binding UntestedSegmentWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Background="#22C55E" />
+                                                    <Border Grid.Column="1" Background="#D97706" />
+                                                    <Border Grid.Column="2" Background="#EF4444" />
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <StackPanel IsVisible="{Binding ShowEmptyNodesHint}">
+                                            <TextBlock
+                                                FontSize="11"
+                                                Opacity="0.65"
+                                                Text="{Binding EmptyNodesHintText}"
+                                                TextWrapping="Wrap" />
+                                            <Border
+                                                Height="5"
+                                                Margin="0,6,0,0"
+                                                Background="#24888888"
+                                                CornerRadius="2.5" />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </DataTemplate>
-                            </MenuItem.ItemTemplate>
-                        </MenuItem>
-                        <MenuItem Header="{x:Static resx:ResUI.menuMoveTo}">
-                            <MenuItem
-                                x:Name="menuMoveTop"
-                                Header="{x:Static resx:ResUI.menuMoveTop}"
-                                InputGesture="T" />
-                            <MenuItem
-                                x:Name="menuMoveUp"
-                                Header="{x:Static resx:ResUI.menuMoveUp}"
-                                InputGesture="U" />
-                            <MenuItem
-                                x:Name="menuMoveDown"
-                                Header="{x:Static resx:ResUI.menuMoveDown}"
-                                InputGesture="D" />
-                            <MenuItem
-                                x:Name="menuMoveBottom"
-                                Header="{x:Static resx:ResUI.menuMoveBottom}"
-                                InputGesture="B" />
-                        </MenuItem>
-                        <MenuItem
-                            x:Name="menuSelectAll"
-                            Header="{x:Static resx:ResUI.menuSelectAll}"
-                            InputGesture="Ctrl+A" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuShareServer"
-                            Header="{x:Static resx:ResUI.menuShareServer}"
-                            InputGesture="Ctrl+F" />
-                        <MenuItem Header="{x:Static resx:ResUI.menuExportConfig}">
-                            <MenuItem x:Name="menuExport2ClientConfig" Header="{x:Static resx:ResUI.menuExport2ClientConfig}" />
-                            <MenuItem x:Name="menuExport2ClientConfigClipboard" Header="{x:Static resx:ResUI.menuExport2ClientConfigClipboard}" />
-                            <Separator />
-                            <MenuItem
-                                x:Name="menuExport2ShareUrl"
-                                Header="{x:Static resx:ResUI.menuExport2ShareUrl}"
-                                InputGesture="Ctrl+C" />
-                            <MenuItem x:Name="menuExport2ShareUrlBase64" Header="{x:Static resx:ResUI.menuExport2ShareUrlBase64}" />
-                            <MenuItem x:Name="menuExport2InnerUri" Header="{x:Static resx:ResUI.menuExport2InnerUri}" />
-                        </MenuItem>
-                        <Separator />
-                        <MenuItem Header="{x:Static resx:ResUI.menuGenGroupServer}">
-                            <MenuItem x:Name="menuGenGroupAllServer" Header="{x:Static resx:ResUI.menuAllServers}" />
-                            <MenuItem x:Name="menuGenGroupRegionServer" Header="{x:Static resx:ResUI.menuGenRegionGroup}" />
-                        </MenuItem>
-                    </ContextMenu>
-                </DataGrid.ContextMenu>
+                            </ListBox.ItemTemplate>
 
-                <DataGrid.Columns>
-                    <DataGridTextColumn
-                        Width="80"
-                        Binding="{Binding ConfigType}"
-                        Header="{x:Static resx:ResUI.LvServiceType}"
-                        Tag="ConfigType" />
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem x:Name="menuSubEdit" Header="{x:Static resx:ResUI.menuSubEdit}" />
+                                    <MenuItem x:Name="menuSubAdd" Header="{x:Static resx:ResUI.menuSubAdd}" />
+                                    <MenuItem x:Name="menuSubDelete" Header="{x:Static resx:ResUI.menuSubDelete}" />
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
 
-                    <DataGridTemplateColumn SortMemberPath="Remarks" Tag="Remarks">
-                        <DataGridTemplateColumn.Header>
-                            <TextBlock Text="{x:Static resx:ResUI.LvRemarks}" />
-                        </DataGridTemplateColumn.Header>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="{StaticResource MarginLr8}" Orientation="Horizontal">
-                                    <Label
-                                        Margin="{StaticResource MarginLr4}"
-                                        Classes="Solid Red"
-                                        Content="{x:Static resx:ResUI.TipActiveServer}"
-                                        IsVisible="{Binding IsActive}"
-                                        Theme="{DynamicResource TagLabel}" />
+            <!-- Col 1: 可拖拽宽度分隔条 -->
+            <GridSplitter
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="Transparent" />
+
+            <!-- Col 2: 右侧主工作区（上方由左向右流程按钮条 + 下方全高节点表格） -->
+            <Grid
+                Grid.Column="2"
+                Margin="10,10,12,10"
+                RowDefinitions="Auto,*">
+                <!-- Row 0: 由左向右核心操作按钮流 (1 添加订阅 -> 2 修改订阅 -> 3 延迟测试) -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Border
+                        Background="{DynamicResource SemiColorBg1}"
+                        BorderBrush="{DynamicResource SemiColorBorder}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Opacity="0.88" />
+                    <WrapPanel
+                        Margin="12,7"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            x:Name="btnAddSub"
+                            Height="32"
+                            MinWidth="104"
+                            Padding="14,0"
+                            AutomationProperties.Name="添加订阅"
+                            CornerRadius="16"
+                            ToolTip.Tip="添加订阅">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource SemiColorFill0}"
+                                    CornerRadius="9">
                                     <TextBlock
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
-                                        Text="{Binding Remarks}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+                                        FontSize="10"
+                                        FontWeight="SemiBold"
+                                        Text="1" />
+                                </Border>
+                                <TextBlock VerticalAlignment="Center" Text="＋ 添加订阅" />
+                            </StackPanel>
+                        </Button>
 
-                    <DataGridTextColumn
-                        Width="120"
-                        Binding="{Binding Address}"
-                        Header="{x:Static resx:ResUI.LvAddress}"
-                        Tag="Address" />
-                    <DataGridTemplateColumn Width="100" SortMemberPath="IpInfo" Tag="IpInfo">
-                        <DataGridTemplateColumn.Header>
-                            <TextBlock Text="{x:Static resx:ResUI.LvTestIpInfo}" />
-                        </DataGridTemplateColumn.Header>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <SelectableTextBlock
-                                    Margin="{StaticResource MarginLr8}"
+                        <TextBlock
+                            Margin="10,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Opacity="0.45"
+                            Text="──→" />
+
+                        <Button
+                            x:Name="btnEditSub"
+                            Height="32"
+                            MinWidth="104"
+                            Padding="14,0"
+                            AutomationProperties.Name="{x:Static resx:ResUI.menuSubEdit}"
+                            CornerRadius="16"
+                            ToolTip.Tip="修改订阅">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="18"
+                                    Height="18"
                                     VerticalAlignment="Center"
-                                    Text="{Binding Path=IpInfo, Mode=OneWay}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn
-                        Width="60"
-                        Binding="{Binding Port}"
-                        Header="{x:Static resx:ResUI.LvPort}"
-                        Tag="Port" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding Network}"
-                        Header="{x:Static resx:ResUI.LvTransportProtocol}"
-                        Tag="Network" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding StreamSecurity}"
-                        Header="{x:Static resx:ResUI.LvTLS}"
-                        Tag="StreamSecurity" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding SubRemarks}"
-                        Header="{x:Static resx:ResUI.LvSubscription}"
-                        Tag="SubRemarks" />
-                    <DataGridTemplateColumn SortMemberPath="Delay" Tag="DelayVal">
-                        <DataGridTemplateColumn.Header>
-                            <TextBlock Text="{x:Static resx:ResUI.LvTestDelay}" />
-                        </DataGridTemplateColumn.Header>
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
+                                    Background="{DynamicResource SemiColorFill0}"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="SemiBold"
+                                        Text="2" />
+                                </Border>
+                                <TextBlock VerticalAlignment="Center" Text="✎ 修改订阅" />
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock
+                            Margin="10,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Opacity="0.45"
+                            Text="──→" />
+
+                        <Button
+                            x:Name="btnFastRealPing"
+                            Height="32"
+                            MinWidth="108"
+                            Padding="14,0"
+                            AutomationProperties.Name="延迟测试"
+                            Classes="Success"
+                            CornerRadius="16"
+                            ToolTip.Tip="{x:Static resx:ResUI.menuFastRealPing}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource SemiColorFill0}"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Text="3" />
+                                </Border>
                                 <TextBlock
-                                    Margin="{StaticResource MarginLr8}"
-                                    HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
-                                    Foreground="{Binding Delay, Converter={StaticResource DelayColorConverter}}"
-                                    Text="{Binding Path=DelayVal, Mode=OneWay}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding SpeedVal}"
-                        Header="{x:Static resx:ResUI.LvTestSpeed}"
-                        Tag="SpeedVal" />
+                                    FontWeight="SemiBold"
+                                    Text="⚡ 延迟测试" />
+                            </StackPanel>
+                        </Button>
 
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding TodayUp}"
-                        Header="{x:Static resx:ResUI.LvTodayUploadDataAmount}"
-                        Tag="TodayUp" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding TodayDown}"
-                        Header="{x:Static resx:ResUI.LvTodayDownloadDataAmount}"
-                        Tag="TodayDown" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding TotalUp}"
-                        Header="{x:Static resx:ResUI.LvTotalUploadDataAmount}"
-                        Tag="TotalUp" />
-                    <DataGridTextColumn
-                        Width="100"
-                        Binding="{Binding TotalDown}"
-                        Header="{x:Static resx:ResUI.LvTotalDownloadDataAmount}"
-                        Tag="TotalDown" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </DockPanel>
-    </Grid>
+                        <Button
+                            x:Name="menuMixedTestServer"
+                            Margin="8,0,0,0"
+                            Classes="IconButton Success"
+                            IsVisible="False"
+                            ToolTip.Tip="{x:Static resx:ResUI.menuMixedTestServer}">
+                            <Button.Content>
+                                <PathIcon Data="{StaticResource building_ping}" />
+                            </Button.Content>
+                        </Button>
+                    </WrapPanel>
+                </Grid>
+
+                <!-- Row 1: 全高节点列表 DataGrid -->
+                <Border
+                    Grid.Row="1"
+                    BorderBrush="{DynamicResource SemiColorBorder}"
+                    BorderThickness="1"
+                    ClipToBounds="True"
+                    CornerRadius="8">
+                    <DataGrid
+                        x:Name="lstProfiles"
+                        AutoGenerateColumns="False"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CanUserReorderColumns="True"
+                        CanUserResizeColumns="True"
+                        Classes.InsetContent="True"
+                        GridLinesVisibility="Horizontal"
+                        HeadersVisibility="All"
+                        IsReadOnly="True"
+                        ItemsSource="{Binding ProfileItems}"
+                        RowHeight="34">
+                        <DataGrid.KeyBindings>
+                            <KeyBinding Command="{Binding Export2ShareUrlCmd}" Gesture="Ctrl+C" />
+                            <KeyBinding Command="{Binding SetDefaultServerCmd}" Gesture="Enter" />
+                        </DataGrid.KeyBindings>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem
+                                    x:Name="menuSetDefaultServer"
+                                    Header="{x:Static resx:ResUI.menuSetDefaultServer}"
+                                    InputGesture="Enter" />
+                                <MenuItem
+                                    x:Name="menuEditServer"
+                                    Header="{x:Static resx:ResUI.menuEditServer}"
+                                    InputGesture="Ctrl+D" />
+                                <MenuItem x:Name="menuCopyServer" Header="{x:Static resx:ResUI.menuCopyServer}" />
+                                <MenuItem
+                                    x:Name="menuRemoveServer"
+                                    Header="{x:Static resx:ResUI.menuRemoveServer}"
+                                    InputGesture="Back" />
+                                <MenuItem x:Name="menuRemoveDuplicateServer" Header="{x:Static resx:ResUI.menuRemoveDuplicateServer}" />
+                                <MenuItem x:Name="menuRemoveInvalidServerResult" Header="{x:Static resx:ResUI.menuRemoveInvalidServerResult}" />
+                                <MenuItem
+                                    x:Name="menuGenerateCloudflareBestNodes"
+                                    Header="以此节点自动生成最优节点"
+                                    IsVisible="False" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuTcpingServer"
+                                    Header="{x:Static resx:ResUI.menuTcpingServer}"
+                                    InputGesture="Ctrl+O" />
+                                <MenuItem
+                                    x:Name="menuRealPingServer"
+                                    Header="{x:Static resx:ResUI.menuRealPingServer}"
+                                    InputGesture="Ctrl+R" />
+                                <MenuItem
+                                    x:Name="menuSpeedServer"
+                                    Header="{x:Static resx:ResUI.menuSpeedServer}"
+                                    InputGesture="Ctrl+T" />
+                                <MenuItem x:Name="menuUdpTestServer" Header="{x:Static resx:ResUI.menuUdpTestServer}" />
+                                <MenuItem x:Name="menuSortServerResult" Header="{x:Static resx:ResUI.menuSortServerResult}" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuMoveToGroup"
+                                    Header="{x:Static resx:ResUI.menuMoveToGroup}"
+                                    ItemsSource="{Binding DataContext.SubItems, ElementName=Root}">
+                                    <MenuItem.ItemTemplate>
+                                        <DataTemplate>
+                                            <MenuItem
+                                                Command="{Binding DataContext.MoveToGroupCmd, ElementName=Root}"
+                                                CommandParameter="{Binding}"
+                                                Header="{Binding Remarks}" />
+                                        </DataTemplate>
+                                    </MenuItem.ItemTemplate>
+                                </MenuItem>
+                                <MenuItem Header="{x:Static resx:ResUI.menuMoveTo}">
+                                    <MenuItem
+                                        x:Name="menuMoveTop"
+                                        Header="{x:Static resx:ResUI.menuMoveTop}"
+                                        InputGesture="T" />
+                                    <MenuItem
+                                        x:Name="menuMoveUp"
+                                        Header="{x:Static resx:ResUI.menuMoveUp}"
+                                        InputGesture="U" />
+                                    <MenuItem
+                                        x:Name="menuMoveDown"
+                                        Header="{x:Static resx:ResUI.menuMoveDown}"
+                                        InputGesture="D" />
+                                    <MenuItem
+                                        x:Name="menuMoveBottom"
+                                        Header="{x:Static resx:ResUI.menuMoveBottom}"
+                                        InputGesture="B" />
+                                </MenuItem>
+                                <MenuItem
+                                    x:Name="menuSelectAll"
+                                    Header="{x:Static resx:ResUI.menuSelectAll}"
+                                    InputGesture="Ctrl+A" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuShareServer"
+                                    Header="{x:Static resx:ResUI.menuShareServer}"
+                                    InputGesture="Ctrl+F" />
+                                <MenuItem Header="{x:Static resx:ResUI.menuExportConfig}">
+                                    <MenuItem x:Name="menuExport2ClientConfig" Header="{x:Static resx:ResUI.menuExport2ClientConfig}" />
+                                    <MenuItem x:Name="menuExport2ClientConfigClipboard" Header="{x:Static resx:ResUI.menuExport2ClientConfigClipboard}" />
+                                    <Separator />
+                                    <MenuItem
+                                        x:Name="menuExport2ShareUrl"
+                                        Header="{x:Static resx:ResUI.menuExport2ShareUrl}"
+                                        InputGesture="Ctrl+C" />
+                                    <MenuItem x:Name="menuExport2ShareUrlBase64" Header="{x:Static resx:ResUI.menuExport2ShareUrlBase64}" />
+                                    <MenuItem x:Name="menuExport2InnerUri" Header="{x:Static resx:ResUI.menuExport2InnerUri}" />
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="{x:Static resx:ResUI.menuGenGroupServer}">
+                                    <MenuItem x:Name="menuGenGroupAllServer" Header="{x:Static resx:ResUI.menuAllServers}" />
+                                    <MenuItem x:Name="menuGenGroupRegionServer" Header="{x:Static resx:ResUI.menuGenRegionGroup}" />
+                                </MenuItem>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="80"
+                                Binding="{Binding ConfigType}"
+                                Header="{x:Static resx:ResUI.LvServiceType}"
+                                Tag="ConfigType" />
+
+                            <DataGridTemplateColumn SortMemberPath="Remarks" Tag="Remarks">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="{x:Static resx:ResUI.LvRemarks}" />
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="{StaticResource MarginLr8}" Orientation="Horizontal">
+                                            <Label
+                                                Margin="{StaticResource MarginLr4}"
+                                                Classes="Solid Red"
+                                                Content="{x:Static resx:ResUI.TipActiveServer}"
+                                                IsVisible="{Binding IsActive}"
+                                                Theme="{DynamicResource TagLabel}" />
+                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Remarks}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn
+                                Width="120"
+                                Binding="{Binding Address}"
+                                Header="{x:Static resx:ResUI.LvAddress}"
+                                Tag="Address" />
+                            <DataGridTemplateColumn Width="100" SortMemberPath="IpInfo" Tag="IpInfo">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="{x:Static resx:ResUI.LvTestIpInfo}" />
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <SelectableTextBlock
+                                            Margin="{StaticResource MarginLr8}"
+                                            VerticalAlignment="Center"
+                                            Text="{Binding Path=IpInfo, Mode=OneWay}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="60"
+                                Binding="{Binding Port}"
+                                Header="{x:Static resx:ResUI.LvPort}"
+                                Tag="Port" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding Network}"
+                                Header="{x:Static resx:ResUI.LvTransportProtocol}"
+                                Tag="Network" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding StreamSecurity}"
+                                Header="{x:Static resx:ResUI.LvTLS}"
+                                Tag="StreamSecurity" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding SubRemarks}"
+                                Header="{x:Static resx:ResUI.LvSubscription}"
+                                Tag="SubRemarks" />
+                            <DataGridTemplateColumn SortMemberPath="Delay" Tag="DelayVal">
+                                <DataGridTemplateColumn.Header>
+                                    <TextBlock Text="{x:Static resx:ResUI.LvTestDelay}" />
+                                </DataGridTemplateColumn.Header>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            Margin="{StaticResource MarginLr8}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Foreground="{Binding Delay, Converter={StaticResource DelayColorConverter}}"
+                                            Text="{Binding Path=DelayVal, Mode=OneWay}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding SpeedVal}"
+                                Header="{x:Static resx:ResUI.LvTestSpeed}"
+                                Tag="SpeedVal" />
+
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding TodayUp}"
+                                Header="{x:Static resx:ResUI.LvTodayUploadDataAmount}"
+                                Tag="TodayUp" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding TodayDown}"
+                                Header="{x:Static resx:ResUI.LvTodayDownloadDataAmount}"
+                                Tag="TodayDown" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding TotalUp}"
+                                Header="{x:Static resx:ResUI.LvTotalUploadDataAmount}"
+                                Tag="TotalUp" />
+                            <DataGridTextColumn
+                                Width="100"
+                                Binding="{Binding TotalDown}"
+                                Header="{x:Static resx:ResUI.LvTotalDownloadDataAmount}"
+                                Tag="TotalDown" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
 </UserControl>

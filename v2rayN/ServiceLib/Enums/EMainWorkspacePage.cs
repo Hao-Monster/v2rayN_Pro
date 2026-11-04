@@ -4,4 +4,7 @@ public enum EMainWorkspacePage
 {
     Home,
     Proxy,
+    ClashProxies,
+    ClashConnections,
+    Logs,
 }

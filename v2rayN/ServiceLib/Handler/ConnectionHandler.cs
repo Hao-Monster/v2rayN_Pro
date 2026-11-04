@@ -61,6 +61,26 @@ public static class ConnectionHandler
         return responseTime;
     }
 
+    internal static async Task<bool> HasLocalSocksProxy(int port)
+    {
+        using var socket = new TcpClient();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        try
+        {
+            await socket.ConnectAsync(IPAddress.Loopback, port, timeout.Token);
+            using var stream = socket.GetStream();
+            // Offer both supported SOCKS5 authentication methods. No remote request is sent.
+            await stream.WriteAsync(new byte[] { 5, 2, 0, 2 }, timeout.Token);
+            var reply = new byte[2];
+            await stream.ReadExactlyAsync(reply, timeout.Token);
+            return reply[0] == 5 && reply[1] is 0 or 2;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or ArgumentOutOfRangeException)
+        {
+            return false;
+        }
+    }
+
     public static async Task<bool> HasDirectInternetAccess()
     {
         if (!NetworkInterface.GetIsNetworkAvailable())

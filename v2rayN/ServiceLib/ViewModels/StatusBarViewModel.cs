@@ -398,42 +398,43 @@ public partial class StatusBarViewModel : MyReactiveObject
             return false;
         }
 
-        if (_config.SystemProxyItem.SysProxyType == type)
-        {
-            SystemProxySelected = (int)type;
-            if (!await ChangeSystemProxyAsync(type, true))
-            {
-                NoticeManager.Instance.Enqueue("macOS system proxy update failed. Check guiLogs.");
-                return false;
-            }
-            return true;
-        }
         _config.SystemProxyItem.SysProxyType = type;
-        if (!await ChangeSystemProxyAsync(type, true))
+        var result = await SysProxyHandler.ApplySysProxy(_config, false);
+        var appliedType = AppliedLanMode(previousType, type, result);
+        _config.SystemProxyItem.SysProxyType = appliedType;
+        SystemProxySelected = (int)appliedType;
+        await ApplySystemProxyState(appliedType, true);
+        if (previousType != appliedType)
         {
-            _config.SystemProxyItem.SysProxyType = previousType;
-            SystemProxySelected = (int)previousType;
-            await ApplySystemProxyState(previousType, true);
-            NoticeManager.Instance.Enqueue("macOS system proxy update failed. Check guiLogs.");
-            return false;
+            await ConfigHandler.SaveConfig(_config);
+            NoticeManager.Instance.SendMessageEx($"{ResUI.TipChangeSystemProxy} - {appliedType}");
         }
-        NoticeManager.Instance.SendMessageEx($"{ResUI.TipChangeSystemProxy} - {_config.SystemProxyItem.SysProxyType}");
-
-        SystemProxySelected = (int)_config.SystemProxyItem.SysProxyType;
-        await ConfigHandler.SaveConfig(_config);
-        return true;
+        return ReportProxyResult(result);
     }
+
+    internal static ESysProxyType AppliedLanMode(ESysProxyType previous, ESysProxyType requested, ProxyApplyResult result) =>
+        result == ProxyApplyResult.Failed ? previous : requested;
 
     public async Task<bool> ChangeSystemProxyAsync(ESysProxyType type, bool blChange)
     {
-        if (!await SysProxyHandler.UpdateSysProxy(_config, false))
+        var result = await SysProxyHandler.ApplySysProxy(_config, false);
+        if (result != ProxyApplyResult.Failed)
         {
-            Logging.SaveLog($"System proxy update failed. RequestedType={type}.");
-            return false;
+            await ApplySystemProxyState(type, blChange);
         }
+        return ReportProxyResult(result);
+    }
 
-        await ApplySystemProxyState(type, blChange);
-        return true;
+    private static bool ReportProxyResult(ProxyApplyResult result)
+    {
+        if (result == ProxyApplyResult.Complete)
+        {
+            return true;
+        }
+        NoticeManager.Instance.Enqueue(result == ProxyApplyResult.LanAppliedRasIncomplete
+            ? "局域网代理设置已生效，拨号或 VPN 连接的代理设置未全部完成，请查看日志"
+            : "System proxy update failed. Check guiLogs.");
+        return false;
     }
 
     private async Task ApplySystemProxyState(ESysProxyType type, bool refreshIcon)

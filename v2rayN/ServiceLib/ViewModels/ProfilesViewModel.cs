@@ -17,6 +17,12 @@ public partial class ProfilesViewModel : MyReactiveObject
 
     private string _serverFilter = string.Empty;
     private readonly Dictionary<string, bool> _dicHeaderSort = new();
+    private readonly Dictionary<string, (string SubId, int Delay)> _allNodeStates = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _subLastSpeedtestAt = new(StringComparer.Ordinal);
+    private bool _syncingSubSelection;
+    private int _cardRefreshVersion;
+    private string _activeServerSubId = string.Empty;
+    private bool _hasActiveServer;
     private SpeedtestService? _speedtestService;
     private CloudflareSpeedTestService? _cloudflareSpeedTestService;
     private string? _pendingSelectIndexId;
@@ -32,6 +38,8 @@ public partial class ProfilesViewModel : MyReactiveObject
 
     public BulkObservableCollection<SubItem> SubItems { get; } = [];
 
+    public BulkObservableCollection<SubscriptionCardItem> SubscriptionCards { get; } = [];
+
     [Reactive]
     public partial ProfileItemModel SelectedProfile { get; set; }
 
@@ -39,6 +47,9 @@ public partial class ProfilesViewModel : MyReactiveObject
 
     [Reactive]
     public partial SubItem SelectedSub { get; set; }
+
+    [Reactive]
+    public partial SubscriptionCardItem? SelectedSubscriptionCard { get; set; }
 
     [Reactive]
     public partial SubItem SelectedMoveToGroup { get; set; }
@@ -107,13 +118,20 @@ public partial class ProfilesViewModel : MyReactiveObject
     public ReactiveCommand<RxVoid, RxVoid> AddSubCmd { get; }
     public ReactiveCommand<RxVoid, RxVoid> EditSubCmd { get; }
     public ReactiveCommand<RxVoid, RxVoid> DeleteSubCmd { get; }
+    public ReactiveCommand<SubscriptionCardItem, RxVoid> UpdateSubscriptionCardCmd { get; }
+    public ReactiveCommand<string, RxVoid> OpenSubscriptionUrlCmd { get; }
 
     #endregion Menu
 
     #region Init
 
-    public ProfilesViewModel()
+    private readonly Func<string, Task<bool>>? _activateServer;
+
+    public ProfilesViewModel() : this(null) { }
+
+    internal ProfilesViewModel(Func<string, Task<bool>>? activateServer)
     {
+        _activateServer = activateServer;
         _config = AppManager.Instance.Config;
 
         #region WhenAnyValue && ReactiveCommand
@@ -128,6 +146,52 @@ public partial class ProfilesViewModel : MyReactiveObject
                 && !selectedSource.IndexId.IsNullOrEmpty()
                 && !optimizing);
 
+        this.WhenAnyValue(x => x.SelectedSubscriptionCard)
+            .Subscribe(card =>
+            {
+                if (_syncingSubSelection || card is null)
+                {
+                    return;
+                }
+
+                _syncingSubSelection = true;
+                try
+                {
+                    var targetSub = SubItems.FirstOrDefault(s => string.Equals(s.Id ?? string.Empty, card.Id, StringComparison.Ordinal))
+                        ?? card.SubItem;
+                    if (!ReferenceEquals(SelectedSub, targetSub))
+                    {
+                        SelectedSub = targetSub;
+                    }
+                }
+                finally
+                {
+                    _syncingSubSelection = false;
+                }
+            });
+        this.WhenAnyValue(x => x.SelectedSub)
+            .Subscribe(sub =>
+            {
+                if (_syncingSubSelection || sub is null || sub.Remarks.IsNullOrEmpty())
+                {
+                    return;
+                }
+
+                _syncingSubSelection = true;
+                try
+                {
+                    var targetId = sub.Id ?? string.Empty;
+                    var targetCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, targetId, StringComparison.Ordinal));
+                    if (targetCard is not null && !ReferenceEquals(SelectedSubscriptionCard, targetCard))
+                    {
+                        SelectedSubscriptionCard = targetCard;
+                    }
+                }
+                finally
+                {
+                    _syncingSubSelection = false;
+                }
+            });
         this.WhenAnyValue(x => x.SelectedSub)
             .Where(y => y != null && !y.Remarks.IsNullOrEmpty() && _config.SubIndexId != y.Id)
             .SubscribeAsync(async _ => await SubSelectedChangedAsync());
@@ -272,10 +336,41 @@ public partial class ProfilesViewModel : MyReactiveObject
         {
             await DeleteSubAsync();
         });
+        UpdateSubscriptionCardCmd = ReactiveCommand.Create<SubscriptionCardItem>(card =>
+        {
+            if (card is null || !card.CanUpdateSubscription)
+            {
+                return;
+            }
+
+            if (card.IsAllGroup)
+            {
+                AppEvents.SubscriptionsUpdateRequested.Publish(false);
+                return;
+            }
+
+            if (card.Id.IsNotEmpty())
+            {
+                AppEvents.CurrentSubscriptionUpdateRequested.Publish(card.Id);
+            }
+        });
+        OpenSubscriptionUrlCmd = ReactiveCommand.Create<string>(url =>
+        {
+            var safeUrl = SubscriptionCardItem.NormalizeExternalUrl(url);
+            if (safeUrl.IsNotEmpty())
+            {
+                ProcUtils.ProcessStart(safeUrl);
+            }
+        });
 
         #endregion WhenAnyValue && ReactiveCommand
 
         #region AppEvents
+
+        StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.SelectedServer)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(_ => RefreshActiveConfigBadgesFromCache());
 
         AppEvents.ProfilesRefreshRequested
             .AsObservable()
@@ -290,7 +385,19 @@ public partial class ProfilesViewModel : MyReactiveObject
         AppEvents.SubscriptionAutoSpeedtestRequested
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(async _ => await AutoRealPingAndSort());
+            .Subscribe(async completion =>
+            {
+                try
+                {
+                    var success = await AutoRealPingAndSort();
+                    completion?.TrySetResult(success);
+                }
+                catch (Exception ex)
+                {
+                    Logging.SaveLog("Automatic subscription speed test failed", ex);
+                    completion?.TrySetResult(false);
+                }
+            });
         AppEvents.DispatcherStatisticsRequested
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
@@ -328,7 +435,14 @@ public partial class ProfilesViewModel : MyReactiveObject
             NoticeManager.Instance.Enqueue(result.Delay);
             return;
         }
+
         var item = ProfileItems.FirstOrDefault(it => it.IndexId == result.IndexId);
+        if (result.Delay.IsNotEmpty())
+        {
+            var delayVal = result.Delay.ToInt();
+            UpdateCardNodeDelayInPlace(result.IndexId, item?.Subid, delayVal);
+        }
+
         if (item == null)
         {
             return;
@@ -426,12 +540,14 @@ public partial class ProfilesViewModel : MyReactiveObject
             SelectedProfile = selected ?? lstModel.First();
         }
 
+        AppEvents.NotifyProfilesRefreshed();
+        await RefreshSubscriptionCardsAsync();
         await DispatcherRefreshServersBizInteraction.HandleSafe(RxVoid.Default);
     }
 
     public async Task RefreshSubscriptions()
     {
-        var subItems = await AppManager.Instance.SubItems();
+        var subItems = await AppManager.Instance.SubItems() ?? [];
         subItems.Insert(0, new SubItem { Remarks = ResUI.AllGroupServers });
 
         SubItems.ReplaceRange(subItems);
@@ -440,6 +556,243 @@ public partial class ProfilesViewModel : MyReactiveObject
                         ? subItems.FirstOrDefault(t => t.Id == _config.SubIndexId)
                         : null) ?? subItems.FirstOrDefault();
         UpdateSelectedSubscriptionTraffic(SelectedSub);
+        await RefreshSubscriptionCardsAsync();
+    }
+
+    private async Task RefreshSubscriptionCardsAsync()
+    {
+        var refreshVersion = ++_cardRefreshVersion;
+        var allProfiles = await AppManager.Instance.ProfileItems(string.Empty) ?? [];
+        var profileExs = await ProfileExManager.Instance.GetProfileExs();
+        if (refreshVersion != _cardRefreshVersion)
+        {
+            return;
+        }
+
+        var subItems = SubItems.ToList();
+        if (subItems.Count == 0)
+        {
+            return;
+        }
+
+        var delayByIndexId = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var ex in profileExs)
+        {
+            if (ex.IndexId.IsNotEmpty())
+            {
+                delayByIndexId[ex.IndexId] = ex.Delay;
+            }
+        }
+
+        _allNodeStates.Clear();
+        var delaysBySubId = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        var allDelays = new List<int>(allProfiles.Count);
+        var activeSubId = string.Empty;
+        var hasActiveNode = false;
+        var activeIndexId = _config.IndexId ?? string.Empty;
+
+        foreach (var profile in allProfiles)
+        {
+            if (profile.IndexId.IsNullOrEmpty())
+            {
+                continue;
+            }
+
+            var subId = profile.Subid ?? string.Empty;
+            var delay = delayByIndexId.GetValueOrDefault(profile.IndexId, 0);
+            _allNodeStates[profile.IndexId] = (subId, delay);
+            allDelays.Add(delay);
+
+            if (!delaysBySubId.TryGetValue(subId, out var subDelays))
+            {
+                subDelays = [];
+                delaysBySubId[subId] = subDelays;
+            }
+            subDelays.Add(delay);
+
+            if (activeIndexId.IsNotEmpty() && string.Equals(profile.IndexId, activeIndexId, StringComparison.Ordinal))
+            {
+                hasActiveNode = true;
+                activeSubId = subId;
+            }
+        }
+
+        _hasActiveServer = hasActiveNode;
+        _activeServerSubId = activeSubId;
+
+        var remoteCount = 0;
+        var enabledRemoteCount = 0;
+        long totalUp = 0;
+        long totalDown = 0;
+        foreach (var sub in subItems)
+        {
+            if (sub.Id.IsNotEmpty() && (sub.Url.IsNotEmpty() || sub.MoreUrl.IsNotEmpty()))
+            {
+                remoteCount++;
+                if (sub.Enabled)
+                {
+                    enabledRemoteCount++;
+                }
+                totalUp += Math.Max(0L, sub.TrafficUpload);
+                totalDown += Math.Max(0L, sub.TrafficDownload);
+            }
+        }
+        var allSummary = new SubscriptionAllSummary(remoteCount, enabledRemoteCount, totalUp, totalDown);
+
+        DateTimeOffset? latestAnySpeedtest = _subLastSpeedtestAt.TryGetValue(string.Empty, out var rootTs)
+            ? rootTs
+            : null;
+        foreach (var sub in subItems)
+        {
+            var id = sub.Id ?? string.Empty;
+            if (id.IsNullOrEmpty())
+            {
+                continue;
+            }
+
+            if (!_subLastSpeedtestAt.TryGetValue(id, out var subTs))
+            {
+                var snapshotTs = SubscriptionSnapshotHandler.TryGetSnapshotTimestamp(id);
+                if (snapshotTs is { } snap)
+                {
+                    _subLastSpeedtestAt[id] = snap;
+                    subTs = snap;
+                }
+            }
+
+            if (subTs != default && (latestAnySpeedtest is null || subTs > latestAnySpeedtest.Value))
+            {
+                latestAnySpeedtest = subTs;
+            }
+        }
+
+        var nowLocal = DateTimeOffset.Now;
+        var existingById = new Dictionary<string, SubscriptionCardItem>(StringComparer.Ordinal);
+        foreach (var existing in SubscriptionCards)
+        {
+            existingById.TryAdd(existing.Id, existing);
+        }
+
+        var sameOrder = SubscriptionCards.Count == subItems.Count
+            && SubscriptionCards.Select(c => c.Id).SequenceEqual(subItems.Select(s => s.Id ?? string.Empty), StringComparer.Ordinal);
+
+        var updatedCards = sameOrder ? null : new List<SubscriptionCardItem>(subItems.Count);
+        for (var i = 0; i < subItems.Count; i++)
+        {
+            var sub = subItems[i];
+            var id = sub.Id ?? string.Empty;
+            var card = sameOrder
+                ? SubscriptionCards[i]
+                : existingById.GetValueOrDefault(id) ?? new SubscriptionCardItem();
+
+            SubscriptionNodeMetrics metrics;
+            bool isActiveConfig;
+            if (id.IsNullOrEmpty())
+            {
+                metrics = SubscriptionCardItem.BuildNodeMetrics(allDelays, latestAnySpeedtest);
+                isActiveConfig = hasActiveNode;
+            }
+            else
+            {
+                var subDelays = delaysBySubId.TryGetValue(id, out var list) ? list : [];
+                var lastTs = _subLastSpeedtestAt.TryGetValue(id, out var ts) ? ts : (DateTimeOffset?)null;
+                metrics = SubscriptionCardItem.BuildNodeMetrics(subDelays, lastTs);
+                isActiveConfig = hasActiveNode && string.Equals(activeSubId, id, StringComparison.Ordinal);
+            }
+
+            card.Apply(sub, metrics, isActiveConfig, allSummary, nowLocal);
+            updatedCards?.Add(card);
+        }
+
+        _syncingSubSelection = true;
+        try
+        {
+            if (updatedCards is not null)
+            {
+                SubscriptionCards.ReplaceRange(updatedCards);
+            }
+
+            var selectedSubId = SelectedSub?.Id ?? _config.SubIndexId ?? string.Empty;
+            var targetCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, selectedSubId, StringComparison.Ordinal))
+                ?? SubscriptionCards.FirstOrDefault();
+            if (!ReferenceEquals(SelectedSubscriptionCard, targetCard))
+            {
+                SelectedSubscriptionCard = targetCard;
+            }
+        }
+        finally
+        {
+            _syncingSubSelection = false;
+        }
+    }
+
+    private void UpdateCardNodeDelayInPlace(string indexId, string? fallbackSubId, int delay)
+    {
+        string subId;
+        if (_allNodeStates.TryGetValue(indexId, out var existing))
+        {
+            subId = existing.SubId;
+        }
+        else
+        {
+            subId = fallbackSubId ?? string.Empty;
+        }
+
+        _allNodeStates[indexId] = (subId, delay);
+
+        var now = DateTimeOffset.Now;
+        _subLastSpeedtestAt[string.Empty] = now;
+        if (subId.IsNotEmpty())
+        {
+            _subLastSpeedtestAt[subId] = now;
+        }
+
+        var allCard = SubscriptionCards.FirstOrDefault(c => c.IsAllGroup);
+        if (allCard is not null)
+        {
+            var allMetrics = SubscriptionCardItem.BuildNodeMetrics(_allNodeStates.Values.Select(v => v.Delay), now);
+            allCard.ApplyNodeMetrics(allMetrics, now);
+        }
+
+        if (subId.IsNotEmpty())
+        {
+            var subCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, subId, StringComparison.Ordinal));
+            if (subCard is not null)
+            {
+                var subDelays = _allNodeStates.Values
+                    .Where(v => string.Equals(v.SubId, subId, StringComparison.Ordinal))
+                    .Select(v => v.Delay);
+                var subMetrics = SubscriptionCardItem.BuildNodeMetrics(subDelays, now);
+                subCard.ApplyNodeMetrics(subMetrics, now);
+            }
+        }
+    }
+
+    private void RefreshActiveConfigBadgesFromCache()
+    {
+        if (SubscriptionCards.Count == 0)
+        {
+            return;
+        }
+
+        var activeIndexId = _config.IndexId ?? string.Empty;
+        if (activeIndexId.IsNotEmpty() && _allNodeStates.TryGetValue(activeIndexId, out var entry))
+        {
+            _hasActiveServer = true;
+            _activeServerSubId = entry.SubId;
+        }
+        else if (activeIndexId.IsNullOrEmpty())
+        {
+            _hasActiveServer = false;
+            _activeServerSubId = string.Empty;
+        }
+
+        foreach (var card in SubscriptionCards)
+        {
+            card.IsActiveConfig = card.IsAllGroup
+                ? _hasActiveServer
+                : _hasActiveServer && string.Equals(card.Id, _activeServerSubId, StringComparison.Ordinal);
+        }
     }
 
     private void UpdateSelectedSubscriptionTraffic(SubItem? item)
@@ -991,11 +1344,11 @@ public partial class ProfilesViewModel : MyReactiveObject
         }
     }
 
-    private async Task AutoRealPingAndSort()
+    private async Task<bool> AutoRealPingAndSort()
     {
         await RefreshServers();
         Logging.SaveLog($"Automatic subscription workflow is starting a real latency test. Subscription={_config.SubIndexId}, Nodes={ProfileItems?.Count ?? 0}.");
-        await ServerSpeedtest(ESpeedActionType.Realping, sortAfterComplete: true, testAll: true);
+        return await ServerSpeedtest(ESpeedActionType.Realping, sortAfterComplete: true, testAll: true);
     }
 
     public async Task<SubscriptionLatencyTestResult> TestAndSortSubscriptions(IReadOnlyCollection<string> subscriptionIds)
@@ -1012,10 +1365,7 @@ public partial class ProfilesViewModel : MyReactiveObject
         }
 
         Logging.SaveLog($"Subscription real latency workflow started. Subscriptions={ids.Count}, Nodes={profiles.Count}.");
-        if (profiles.Count > 0)
-        {
-            await RunSpeedtestOnce(ESpeedActionType.Realping, profiles, displayCoreLog: false);
-        }
+        var delays = await MeasureRealDelays(profiles, showResults: true);
 
         foreach (var id in ids)
         {
@@ -1023,27 +1373,64 @@ public partial class ProfilesViewModel : MyReactiveObject
         }
         await ProfileExManager.Instance.SaveTo();
 
-        var availableSubscriptionIds = new HashSet<string>(StringComparer.Ordinal);
-        var availableProfiles = new List<ProfileItemModel>();
+        var result = await ReadSubscriptionLatencyResult(ids, profiles.Count, delays);
+        AppEvents.ProfilesRefreshRequested.Publish();
+        Logging.SaveLog($"Subscription real latency workflow completed. Tested={profiles.Count}, Best={result.BestProfile?.IndexId ?? Global.None}, Delay={result.BestProfile?.Delay ?? -1}.");
+        return result;
+    }
+
+    internal static async Task<SubscriptionLatencyTestResult> ReadSubscriptionLatencyResult(
+        IReadOnlyList<string> ids, int tested, IReadOnlyDictionary<string, int> delays)
+    {
+        var available = new HashSet<string>(StringComparer.Ordinal);
+        ProfileItemModel? best = null;
         foreach (var id in ids)
         {
             var models = await AppManager.Instance.ProfileModels(id, "") ?? [];
-            var available = models
-                .Where(item => item.Delay > 0)
-                .OrderBy(item => item.Delay)
-                .ToList();
-            if (available.Count > 0)
+            foreach (var model in models)
             {
-                availableSubscriptionIds.Add(id);
-                availableProfiles.AddRange(available);
+                if (!delays.TryGetValue(model.IndexId, out var delay) || delay <= 0)
+                {
+                    continue;
+                }
+                available.Add(id);
+                if (best is null || delay < best.Delay)
+                {
+                    model.Delay = delay;
+                    best = model;
+                }
             }
         }
+        return new SubscriptionLatencyTestResult(ids, tested, best, available);
+    }
 
-        var best = availableProfiles.OrderBy(item => item.Delay).FirstOrDefault();
+    internal async Task<List<string>> TestLocalAlternatives(string? activeId)
+    {
+        var profiles = await AppManager.Instance.ProfileItems(string.Empty) ?? [];
+        var candidates = profiles.Where(item => item.IndexId != activeId && IsSpeedtestCandidate(item)).ToList();
+        var delays = await MeasureRealDelays(candidates);
         AppEvents.ProfilesRefreshRequested.Publish();
-        Logging.SaveLog(
-            $"Subscription real latency workflow completed. Tested={profiles.Count}, Available={availableProfiles.Count}, Best={best?.IndexId ?? Global.None}, Delay={best?.Delay ?? -1}.");
-        return new SubscriptionLatencyTestResult(ids, profiles.Count, best, availableSubscriptionIds);
+        return LatencySortHelper.ReachableNodeIds(delays);
+    }
+
+    private async Task<IReadOnlyDictionary<string, int>> MeasureRealDelays(List<ProfileItem> candidates, bool showResults = false)
+    {
+        var delays = new ConcurrentDictionary<string, int>();
+        if (candidates.Count == 0)
+        {
+            return delays;
+        }
+
+        var speedtest = new SpeedtestService(_config, result =>
+        {
+            if (result.IndexId is { Length: > 0 } id && int.TryParse(result.Delay, out var delay))
+            {
+                delays[id] = delay;
+            }
+            return showResults ? DispatchSpeedTestResult(result) : Task.CompletedTask;
+        });
+        await speedtest.RunOnceAsync(ESpeedActionType.Realping, candidates, displayCoreLog: false);
+        return delays;
     }
 
     private static bool IsSpeedtestCandidate(ProfileItem item)
@@ -1053,7 +1440,7 @@ public partial class ProfilesViewModel : MyReactiveObject
             && (item.ConfigType.IsComplexType() || item.Port > 0);
     }
 
-    private async Task SortDelayAndSetFirstServer()
+    private async Task<bool> SortDelayAndSetFirstServer()
     {
         var activeIndexId = _config.IndexId;
         var keepCurrentServer = await AppManager.Instance.GetProfileItem(activeIndexId) is not null
@@ -1068,7 +1455,7 @@ public partial class ProfilesViewModel : MyReactiveObject
             && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config))
         {
             Logging.SaveLog($"Keeping the current active server because automatic system proxy is already enabled. Server={activeIndexId}.");
-            return;
+            return _activateServer is not null && await _activateServer(activeIndexId);
         }
 
         var lstModel = await GetProfileItemsEx(_config.SubIndexId, string.Empty);
@@ -1080,31 +1467,13 @@ public partial class ProfilesViewModel : MyReactiveObject
         if (first?.IndexId.IsNotEmpty() == true)
         {
             Logging.SaveLog($"Selecting the lowest-latency available server. Server={first.IndexId}, Delay={first.Delay} ms.");
-            await SetDefaultServerAndEnableAutoProxy(first.IndexId);
-            return;
+            return _activateServer is not null && await _activateServer(first.IndexId);
         }
 
         const string message = "延迟测试没有找到可用节点，未切换活动节点，也未启用自动系统代理。";
         NoticeManager.Instance.Enqueue(message);
         Logging.SaveLog(message);
-    }
-
-    private async Task SetDefaultServerAndEnableAutoProxy(string indexId)
-    {
-        var item = await AppManager.Instance.GetProfileItem(indexId);
-        if (item is null)
-        {
-            NoticeManager.Instance.Enqueue(ResUI.PleaseSelectServer);
-            return;
-        }
-
-        _config.IndexId = indexId;
-        await ConfigHandler.SaveConfig(_config);
-        Logging.SaveLog($"Automatic speed test selected active server {indexId} and requested automatic system proxy.");
-
-        await RefreshServers();
-        Reload();
-        AppEvents.SysProxyChangeRequested.Publish(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
+        return false;
     }
 
     private async Task CleanupCloudflareBestNodesSortAndSetFirstServer(IReadOnlyList<ProfileItem> testedProfiles)
@@ -1170,16 +1539,13 @@ public partial class ProfilesViewModel : MyReactiveObject
 
     private SpeedtestService GetSpeedtestService()
     {
-        _speedtestService ??= new SpeedtestService(_config, async (SpeedTestResult result) =>
-        {
-            RxSchedulers.MainThreadScheduler.Schedule(() =>
-            {
-                _ = SetSpeedTestResult(result);
-            });
-            await Task.CompletedTask;
-        });
+        return _speedtestService ??= new SpeedtestService(_config, DispatchSpeedTestResult);
+    }
 
-        return _speedtestService;
+    private Task DispatchSpeedTestResult(SpeedTestResult result)
+    {
+        RxSchedulers.MainThreadScheduler.Schedule(() => { _ = SetSpeedTestResult(result); });
+        return Task.CompletedTask;
     }
 
     private async Task RunSpeedtestOnce(ESpeedActionType actionType, List<ProfileItem> selecteds, Func<Task>? completedFunc = null, bool displayCoreLog = true)
@@ -1192,7 +1558,7 @@ public partial class ProfilesViewModel : MyReactiveObject
         await GetSpeedtestService().RunOnceAsync(actionType, selecteds, completedFunc, displayCoreLog);
     }
 
-    public async Task ServerSpeedtest(ESpeedActionType actionType, bool sortAfterComplete = false, bool testAll = false)
+    public async Task<bool> ServerSpeedtest(ESpeedActionType actionType, bool sortAfterComplete = false, bool testAll = false)
     {
         List<ProfileItem>? lstSelected;
         if (actionType == ESpeedActionType.FastRealping)
@@ -1212,13 +1578,11 @@ public partial class ProfilesViewModel : MyReactiveObject
 
         if (lstSelected is null || lstSelected.Count <= 0)
         {
-            return;
+            return false;
         }
 
-        Func<Task>? completedFunc = sortAfterComplete
-            ? SortDelayAndSetFirstServer
-            : null;
-        await GetSpeedtestService().RunLoop(actionType, lstSelected, completedFunc);
+        await GetSpeedtestService().RunLoop(actionType, lstSelected);
+        return !sortAfterComplete || await SortDelayAndSetFirstServer();
     }
 
     public void ServerSpeedtestStop()

@@ -31,8 +31,6 @@ public partial class SubscriptionInfoView
             this.OneWayBind(ViewModel, vm => vm.CurrentDelay, v => v.txtCurrentDelay.Text).DisposeWith(disposables);
             this.OneWayBind(ViewModel, vm => vm.SystemProxyStatus, v => v.txtSystemProxyStatus.Text).DisposeWith(disposables);
             this.OneWayBind(ViewModel, vm => vm.CanContactSupport, v => v.btnContactSupport.Visibility).DisposeWith(disposables);
-            this.OneWayBind(ViewModel, vm => vm.IsNetworkRepairing, v => v.btnOneClickNetworkSetup.IsEnabled,
-                repairing => !repairing).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.OpenSupportCmd, v => v.btnSupport).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.ContactSupportCmd, v => v.btnContactSupport).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.OneClickNetworkSetupCmd, v => v.btnOneClickNetworkSetup).DisposeWith(disposables);

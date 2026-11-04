@@ -14,7 +14,7 @@
 | 自动流程中的无效节点清理范围限制 | `ProfilesViewModel.cs` | 高 |
 | CloudflareST 最优节点生成与日志 | `CloudflareSpeedTestService.cs` | 高 |
 | Cloudflare trace 地区探测 | 测速服务及节点模型 | 中 |
-| 首页/代理双页面导航 | Windows 与 Desktop `MainWindow` | 高 |
+| 左侧纵向导航栏与由左向右三栏代理工作区布局 | `EMainWorkspacePage.cs`、`ConfigItems.cs`、`ConfigHandler.cs`、`MainWindowViewModel.cs`、Windows 与 Desktop `MainWindow` / `ProfilesView` | 高 |
 | 订阅公告、流量、到期时间和跳转链接 | `SubscriptionInfoViewModel`、SubscriptionInfo 视图 | 中 |
 | 订阅链接优先、自动生成别名 | 订阅编辑窗口及订阅更新流程 | 高 |
 | 静态/GIF 背景、透明度和外观入口 | `WorkspaceBackgroundHandler`、主题和主窗口视图 | 中 |
@@ -27,6 +27,8 @@
 
 官方更新时优先审查以下文件，不允许只根据编译是否通过判断合并成功：
 
+- `v2rayN/ServiceLib/Models/Configs/ConfigItems.cs`
+- `v2rayN/ServiceLib/ViewModels/MainWindowViewModel.cs`
 - `v2rayN/ServiceLib/ViewModels/ProfilesViewModel.cs`
 - `v2rayN/ServiceLib/ViewModels/StatusBarViewModel.cs`
 - `v2rayN/ServiceLib/ViewModels/SubscriptionInfoViewModel.cs`

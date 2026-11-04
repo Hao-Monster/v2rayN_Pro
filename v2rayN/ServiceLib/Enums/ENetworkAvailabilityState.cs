@@ -7,5 +7,8 @@ public enum ENetworkAvailabilityState
     Repairing,
     Repaired,
     NoAvailableNode,
-    LocalNetworkUnavailable
+    LocalNetworkUnavailable,
+    Idle,
+    LocalNodesUnavailable,
+    SetupFailed
 }

@@ -10,394 +10,1206 @@
     xmlns:reactiveui="http://reactiveui.net"
     xmlns:resx="clr-namespace:ServiceLib.Resx;assembly=ServiceLib"
     xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
-    d:DesignHeight="450"
-    d:DesignWidth="800"
+    d:DesignHeight="680"
+    d:DesignWidth="1080"
     x:TypeArguments="vms:ProfilesViewModel"
     Background="Transparent"
     Style="{StaticResource ViewGlobal}"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
         <conv:DelayColorConverter x:Key="DelayColorConverter" />
+        <conv:StarGridLengthConverter x:Key="StarGridLengthConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <!-- 左侧纵向订阅卡片样式 -->
+        <Style x:Key="SubscriptionCardListBoxItem" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Margin" Value="8,4" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                        <Grid SnapsToDevicePixels="True">
+                            <Border
+                                x:Name="CardSurface"
+                                Background="{DynamicResource MaterialDesignPaper}"
+                                BorderBrush="{DynamicResource MaterialDesignDivider}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Opacity="0.94" />
+                            <Border
+                                x:Name="SelectedTint"
+                                Background="{DynamicResource MaterialDesign.Brush.Primary}"
+                                CornerRadius="10"
+                                IsHitTestVisible="False"
+                                Opacity="0" />
+                            <Border Margin="12,11">
+                                <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CardSurface" Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
+                                <Setter TargetName="CardSurface" Property="Opacity" Value="0.98" />
+                                <Setter TargetName="SelectedTint" Property="Opacity" Value="0.05" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="CardSurface" Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
+                                <Setter TargetName="CardSurface" Property="BorderThickness" Value="1.5" />
+                                <Setter TargetName="CardSurface" Property="Opacity" Value="1" />
+                                <Setter TargetName="SelectedTint" Property="Opacity" Value="0.11" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 订阅卡片内右上角胶囊操作按钮样式 -->
+        <Style x:Key="CardActionPillButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="PillSurface"
+                            Padding="{TemplateBinding Padding}"
+                            Background="#16888888"
+                            BorderBrush="{DynamicResource MaterialDesignDivider}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PillSurface" Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
+                                <Setter TargetName="PillSurface" Property="Background" Value="#243B82F6" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 订阅卡片内快捷链接微胶囊按钮样式 -->
+        <Style x:Key="CardMiniLinkButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Margin" Value="0,0,5,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="MiniPill"
+                            Padding="{TemplateBinding Padding}"
+                            Background="#14888888"
+                            BorderBrush="{DynamicResource MaterialDesignDivider}"
+                            BorderThickness="1"
+                            CornerRadius="9"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MiniPill" Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
+                                <Setter TargetName="MiniPill" Property="Background" Value="#223B82F6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 由左向右步骤胶囊按钮样式（次要步骤） -->
+        <Style x:Key="WorkflowStepButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+            <Setter Property="FontSize" Value="{DynamicResource StdFontSize}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="PillBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{DynamicResource MaterialDesignPaper}"
+                            BorderBrush="{DynamicResource MaterialDesignDivider}"
+                            BorderThickness="1"
+                            CornerRadius="16"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PillBorder" Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 由左向右步骤胶囊按钮样式（主强调步骤） -->
+        <Style x:Key="WorkflowPrimaryStepButton" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Primary.Foreground}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="{DynamicResource StdFontSize}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border
+                            x:Name="PillBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{DynamicResource MaterialDesign.Brush.Primary}"
+                            BorderBrush="{DynamicResource MaterialDesign.Brush.Primary}"
+                            BorderThickness="1"
+                            CornerRadius="16"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PillBorder" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
-    <Grid>
-        <DockPanel>
-            <WrapPanel Margin="{StaticResource Margin4}" DockPanel.Dock="Top">
-                <ListBox
-                    x:Name="lstGroup"
-                    MaxHeight="200"
-                    AutomationProperties.Name="{x:Static resx:ResUI.menuSubscription}"
-                    FontSize="{DynamicResource StdFontSize}"
-                    ItemContainerStyle="{StaticResource MyChipListBoxItem}"
-                    Style="{StaticResource MaterialDesignChoiceChipPrimaryOutlineListBox}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel>
-                                <TextBlock Text="{Binding Remarks}" />
-                                <TextBlock
-                                    MaxWidth="360"
-                                    Margin="0,2,0,0"
-                                    FontSize="10"
-                                    Opacity="0.68"
-                                    Text="{Binding DataContext.SelectedSubscriptionTraffic, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                    TextTrimming="CharacterEllipsis">
-                                    <TextBlock.Style>
-                                        <Style TargetType="{x:Type TextBlock}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition
-                                                            Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                            Value="True" />
-                                                        <Condition
-                                                            Binding="{Binding DataContext.HasSelectedSubscriptionTraffic, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                            Value="True" />
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+
+    <DockPanel>
+        <!-- 页面顶栏：左标题与当前分组徽章 -> 右节点搜索框与调整列宽 -->
+        <Grid DockPanel.Dock="Top">
+            <Border
+                Background="{DynamicResource MaterialDesignPaper}"
+                BorderBrush="{DynamicResource MaterialDesignDivider}"
+                BorderThickness="0,0,0,1"
+                Opacity="0.82" />
+            <Grid Margin="16,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Text="代理" />
+
+                <Border
+                    Grid.Column="1"
+                    Margin="10,0,12,0"
+                    Padding="10,3"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource MaterialDesignPaper}"
+                    BorderBrush="{DynamicResource MaterialDesignDivider}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Opacity="0.92">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedSub.Remarks}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding SelectedSub.Remarks}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock
+                        MaxWidth="260"
+                        FontSize="11"
+                        Opacity="0.84"
+                        Text="{Binding SelectedSub.Remarks}"
+                        TextTrimming="CharacterEllipsis" />
+                </Border>
+
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBox
+                        x:Name="txtServerFilter"
+                        Width="190"
+                        Margin="0,0,8,0"
+                        VerticalContentAlignment="Center"
+                        materialDesign:HintAssist.Hint="{x:Static resx:ResUI.MsgServerTitle}"
+                        materialDesign:TextFieldAssist.HasClearButton="True"
+                        AutomationProperties.Name="{x:Static resx:ResUI.MsgServerTitle}"
+                        Style="{StaticResource DefTextBox}"
+                        ToolTip="{x:Static resx:ResUI.MsgServerTitle}" />
+
+                    <Button
+                        x:Name="btnAutofitColumnWidth"
+                        Height="30"
+                        MinWidth="84"
+                        Padding="10,0"
+                        AutomationProperties.Name="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}"
+                        Content="调整列宽"
+                        Style="{StaticResource DefButton}"
+                        ToolTip="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- 主体区域：由左向右双栏 [ Col 0 纵向订阅分组栏 ] + [ Col 1 分隔条 ] + [ Col 2 右侧操作流与全高节点列表 ] -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition
+                    Width="280"
+                    MinWidth="210"
+                    MaxWidth="420" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Col 0: 纵向订阅分组卡片栏 -->
+            <Border
+                Grid.Column="0"
+                BorderBrush="{DynamicResource MaterialDesignDivider}"
+                BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border
+                        Padding="14,10,14,6"
+                        DockPanel.Dock="Top">
+                        <TextBlock
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Opacity="0.68"
+                            Text="全部配置" />
+                    </Border>
+
+                    <ListBox
+                        x:Name="lstGroup"
+                        Padding="0,2,0,10"
+                        AutomationProperties.Name="{x:Static resx:ResUI.menuSubscription}"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="{DynamicResource StdFontSize}"
+                        ItemContainerStyle="{StaticResource SubscriptionCardListBoxItem}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel Orientation="Vertical" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <!-- Row 1: 标题与右上角更新订阅胶囊按钮 -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            MaxHeight="38"
+                                            VerticalAlignment="Center"
+                                            FontSize="13.5"
+                                            FontWeight="Bold"
+                                            LineHeight="18"
+                                            Text="{Binding Remarks}"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="Wrap"
+                                            ToolTip="{Binding HeaderToolTip}" />
+                                        <Button
+                                            Grid.Column="1"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Top"
+                                            AutomationProperties.Name="{Binding UpdateButtonText}"
+                                            Command="{Binding DataContext.UpdateSubscriptionCardCmd, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                            CommandParameter="{Binding}"
+                                            IsEnabled="{Binding CanUpdateSubscription}"
+                                            Style="{StaticResource CardActionPillButton}"
+                                            ToolTip="{Binding UpdateButtonText}"
+                                            Visibility="{Binding ShowUpdateButton, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon
+                                                    Width="12"
+                                                    Height="12"
+                                                    Margin="0,0,4,0"
+                                                    VerticalAlignment="Center"
+                                                    Kind="Sync" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontWeight="Medium"
+                                                    Text="{Binding UpdateButtonText}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Row 2: 状态与属性徽章 -->
+                                    <WrapPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                        <Border
+                                            Margin="0,0,5,4"
+                                            Padding="7,2"
+                                            Background="#223B82F6"
+                                            BorderBrush="#663B82F6"
+                                            BorderThickness="1"
+                                            CornerRadius="9"
+                                            Visibility="{Binding IsActiveConfig, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock
+                                                FontSize="10.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
+                                                Text="活动配置" />
+                                        </Border>
+
+                                        <Border
+                                            Margin="0,0,5,4"
+                                            Padding="7,2"
+                                            Background="#16888888"
+                                            BorderBrush="{DynamicResource MaterialDesignDivider}"
+                                            BorderThickness="1"
+                                            CornerRadius="9">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon
+                                                    Width="11"
+                                                    Height="11"
+                                                    Margin="0,0,4,0"
+                                                    VerticalAlignment="Center"
+                                                    Kind="Sync"
+                                                    Opacity="0.8" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="10.5"
+                                                    Opacity="0.88"
+                                                    Text="{Binding UpdateModeBadgeText}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border
+                                            Margin="0,0,5,4"
+                                            Padding="7,2"
+                                            Background="#22EF4444"
+                                            BorderBrush="#66EF4444"
+                                            BorderThickness="1"
+                                            CornerRadius="9"
+                                            Visibility="{Binding IsDisabled, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock
+                                                FontSize="10.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="#EF4444"
+                                                Text="已禁用" />
+                                        </Border>
+
+                                        <Button
+                                            Command="{Binding DataContext.OpenSubscriptionUrlCmd, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                            CommandParameter="{Binding ProfileWebPageUrl}"
+                                            Style="{StaticResource CardMiniLinkButton}"
+                                            ToolTip="{Binding ProfileWebPageUrl}"
+                                            Visibility="{Binding HasProfileWebPageUrl, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon
+                                                    Width="11"
+                                                    Height="11"
+                                                    Margin="0,0,3,0"
+                                                    VerticalAlignment="Center"
+                                                    Kind="Web"
+                                                    Opacity="0.82" />
+                                                <TextBlock VerticalAlignment="Center" Text="官网" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button
+                                            Command="{Binding DataContext.OpenSubscriptionUrlCmd, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                            CommandParameter="{Binding SupportUrl}"
+                                            Style="{StaticResource CardMiniLinkButton}"
+                                            ToolTip="{Binding SupportUrl}"
+                                            Visibility="{Binding HasSupportUrl, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon
+                                                    Width="11"
+                                                    Height="11"
+                                                    Margin="0,0,3,0"
+                                                    VerticalAlignment="Center"
+                                                    Kind="Headset"
+                                                    Opacity="0.82" />
+                                                <TextBlock VerticalAlignment="Center" Text="客服" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+
+                                    <!-- Row 3 & 4: 流量配额与上下行明细 -->
+                                    <StackPanel
+                                        Margin="0,4,0,0"
+                                        Visibility="{Binding HasTrafficSection, Converter={StaticResource BoolToVis}}">
+                                        <!-- 有限额流量卡片 -->
+                                        <Border
+                                            Padding="8,6"
+                                            BorderThickness="1"
+                                            CornerRadius="7"
+                                            Visibility="{Binding HasQuotaLimit, Converter={StaticResource BoolToVis}}">
+                                            <Border.Style>
+                                                <Style TargetType="{x:Type Border}">
+                                                    <Setter Property="Background" Value="#1622C55E" />
+                                                    <Setter Property="BorderBrush" Value="#4422C55E" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsQuotaWarning}" Value="True">
+                                                            <Setter Property="Background" Value="#18F59E0B" />
+                                                            <Setter Property="BorderBrush" Value="#50F59E0B" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsQuotaDanger}" Value="True">
+                                                            <Setter Property="Background" Value="#18EF4444" />
+                                                            <Setter Property="BorderBrush" Value="#55EF4444" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border
+                                                        Grid.Column="0"
+                                                        Width="9"
+                                                        Height="9"
+                                                        VerticalAlignment="Center"
+                                                        BorderThickness="1.8"
+                                                        CornerRadius="4.5">
+                                                        <Border.Style>
+                                                            <Style TargetType="{x:Type Border}">
+                                                                <Setter Property="BorderBrush" Value="#22C55E" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsQuotaWarning}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="#F59E0B" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsQuotaDanger}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="#EF4444" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                    </Border>
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Margin="6,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="11.5"
+                                                        FontWeight="SemiBold"
+                                                        Text="{Binding QuotaRemainingText}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="11"
+                                                        FontWeight="Bold"
+                                                        Text="{Binding QuotaPercentText}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                <Setter Property="Foreground" Value="#22C55E" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsQuotaWarning}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#F59E0B" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsQuotaDanger}" Value="True">
+                                                                        <Setter Property="Foreground" Value="#EF4444" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                                <Border
+                                                    Height="3.5"
+                                                    Margin="0,5,0,0"
+                                                    Background="#28888888"
+                                                    ClipToBounds="True"
+                                                    CornerRadius="1.75">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="{Binding QuotaFilledWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                            <ColumnDefinition Width="{Binding QuotaEmptyWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0">
+                                                            <Border.Style>
+                                                                <Style TargetType="{x:Type Border}">
+                                                                    <Setter Property="Background" Value="#22C55E" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsQuotaWarning}" Value="True">
+                                                                            <Setter Property="Background" Value="#F59E0B" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsQuotaDanger}" Value="True">
+                                                                            <Setter Property="Background" Value="#EF4444" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- 不限流量行 -->
+                                        <StackPanel
+                                            Orientation="Horizontal"
+                                            Visibility="{Binding ShowUnlimitedTrafficRow, Converter={StaticResource BoolToVis}}">
+                                            <materialDesign:PackIcon
+                                                Width="15"
+                                                Height="15"
+                                                Margin="0,0,5,0"
+                                                VerticalAlignment="Center"
+                                                Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
+                                                Kind="AllInclusive" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="11.5"
+                                                FontWeight="Medium"
+                                                Text="{Binding UnlimitedTrafficText}" />
+                                        </StackPanel>
+
+                                        <TextBlock
+                                            Margin="0,4,0,0"
+                                            FontSize="11"
+                                            LineHeight="15.5"
+                                            Opacity="0.8"
+                                            Text="{Binding TrafficDetailText}"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <!-- Row 5 & 6: 到期时间与同步时间 -->
+                                    <StackPanel
+                                        Margin="0,5,0,0"
+                                        Visibility="{Binding HasSubscriptionMeta, Converter={StaticResource BoolToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon
+                                                Grid.Column="0"
+                                                Width="13"
+                                                Height="13"
+                                                Margin="0,1,5,0"
+                                                VerticalAlignment="Top"
+                                                Kind="CheckDecagramOutline"
+                                                Opacity="0.74" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                FontSize="11"
+                                                Text="{Binding ExpireText}"
+                                                TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="{x:Type TextBlock}">
+                                                        <Setter Property="Opacity" Value="0.85" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsExpiringSoon}" Value="True">
+                                                                <Setter Property="Foreground" Value="#F59E0B" />
+                                                                <Setter Property="Opacity" Value="1" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsExpired}" Value="True">
+                                                                <Setter Property="Foreground" Value="#EF4444" />
+                                                                <Setter Property="Opacity" Value="1" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
+                                        <Grid Margin="0,3,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon
+                                                Grid.Column="0"
+                                                Width="13"
+                                                Height="13"
+                                                Margin="0,1,5,0"
+                                                VerticalAlignment="Top"
+                                                Kind="ClockOutline"
+                                                Opacity="0.74" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                FontSize="11"
+                                                Opacity="0.82"
+                                                Text="{Binding SyncTimeText}"
+                                                TextWrapping="Wrap" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Row 7: 公告与备注内嵌卡片 -->
+                                    <Border
+                                        Margin="0,7,0,0"
+                                        Padding="8,6"
+                                        Background="#16888888"
+                                        BorderBrush="{DynamicResource MaterialDesignDivider}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        ToolTip="{Binding NoteBoxToolTip}"
+                                        Visibility="{Binding HasNoteBox, Converter={StaticResource BoolToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon
+                                                Grid.Column="0"
+                                                Width="13"
+                                                Height="13"
+                                                Margin="0,2,6,0"
+                                                VerticalAlignment="Top"
+                                                Foreground="{DynamicResource MaterialDesign.Brush.Primary}"
+                                                Kind="BullhornOutline" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                MaxHeight="48"
+                                                FontSize="11"
+                                                LineHeight="15.5"
+                                                Opacity="0.86"
+                                                Text="{Binding NoteBoxText}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- 扩展规则摘要（过滤/指定内核/转换目标/链式代理/附加源） -->
+                                    <TextBlock
+                                        Margin="0,5,0,0"
+                                        FontSize="10.5"
+                                        Opacity="0.72"
+                                        Text="{Binding ExtraConfigText}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding ExtraConfigText}"
+                                        Visibility="{Binding HasExtraConfig, Converter={StaticResource BoolToVis}}" />
+
+                                    <!-- Row 8: 分隔线 + 节点可用率、中位延迟、最近测速与三色健康条 -->
+                                    <Border
+                                        Height="1"
+                                        Margin="0,8,0,7"
+                                        Background="{DynamicResource MaterialDesignDivider}"
+                                        Opacity="0.65" />
+
+                                    <StackPanel Visibility="{Binding HasNodeStats, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding NodeCountsText}" />
+                                        <TextBlock
+                                            Margin="0,2,0,0"
+                                            FontSize="11"
+                                            Opacity="0.86"
+                                            Text="{Binding MedianDelayText}" />
+                                        <TextBlock
+                                            Margin="0,2,0,0"
+                                            FontSize="10.5"
+                                            Opacity="0.74"
+                                            Text="{Binding LastSpeedtestText}"
+                                            TextWrapping="Wrap" />
+                                        <Border
+                                            Height="5"
+                                            Margin="0,6,0,0"
+                                            Background="#28888888"
+                                            ClipToBounds="True"
+                                            CornerRadius="2.5"
+                                            ToolTip="{Binding HealthBarToolTip}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="{Binding FastNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                    <ColumnDefinition Width="{Binding MediumNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                    <ColumnDefinition Width="{Binding FailedNodeCount, Converter={StaticResource StarGridLengthConverter}}" />
+                                                    <ColumnDefinition Width="{Binding UntestedSegmentWeight, Converter={StaticResource StarGridLengthConverter}}" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Background="#22C55E" />
+                                                <Border Grid.Column="1" Background="#D97706" />
+                                                <Border Grid.Column="2" Background="#EF4444" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel Visibility="{Binding ShowEmptyNodesHint, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock
+                                            FontSize="11"
+                                            Opacity="0.65"
+                                            Text="{Binding EmptyNodesHintText}"
+                                            TextWrapping="Wrap" />
+                                        <Border
+                                            Height="5"
+                                            Margin="0,6,0,0"
+                                            Background="#24888888"
+                                            CornerRadius="2.5" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- Col 1: 可拖拽宽度分隔条 -->
+            <GridSplitter
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="Transparent" />
+
+            <!-- Col 2: 右侧主工作区（上方由左向右流程按钮条 + 下方全高节点表格） -->
+            <Grid Grid.Column="2" Margin="10,10,12,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Row 0: 由左向右核心操作按钮流 (1 添加订阅 -> 2 修改订阅 -> 3 延迟测试) -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Border
+                        Background="{DynamicResource MaterialDesignPaper}"
+                        BorderBrush="{DynamicResource MaterialDesignDivider}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Opacity="0.86" />
+                    <WrapPanel
+                        Margin="12,7"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            x:Name="btnAddSub"
+                            AutomationProperties.Name="添加订阅"
+                            Style="{StaticResource WorkflowStepButton}"
+                            ToolTip="添加订阅">
+                            <StackPanel Orientation="Horizontal">
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource MaterialDesignDivider}"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="SemiBold"
+                                        Text="1" />
+                                </Border>
+                                <materialDesign:PackIcon
+                                    Width="15"
+                                    Height="15"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    Kind="Plus" />
+                                <TextBlock VerticalAlignment="Center" Text="添加订阅" />
                             </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                        </Button>
 
-                <Button
-                    x:Name="btnEditSub"
-                    Height="30"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLeftRight4}"
-                    AutomationProperties.Name="{x:Static resx:ResUI.menuSubEdit}"
-                    Content="修改订阅"
-                    Padding="10,0"
-                    Style="{StaticResource DefButton}"
-                    ToolTip="修改订阅" />
-                <TextBox
-                    x:Name="txtServerFilter"
-                    Width="200"
-                    Margin="{StaticResource MarginLeftRight4}"
-                    VerticalContentAlignment="Center"
-                    materialDesign:HintAssist.Hint="{x:Static resx:ResUI.MsgServerTitle}"
-                    materialDesign:TextFieldAssist.HasClearButton="True"
-                    AutomationProperties.Name="{x:Static resx:ResUI.MsgServerTitle}"
-                    Style="{StaticResource DefTextBox}"
-                    ToolTip="{x:Static resx:ResUI.MsgServerTitle}" />
+                        <TextBlock
+                            Margin="10,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Opacity="0.45"
+                            Text="──→" />
 
-                <Button
-                    x:Name="btnAutofitColumnWidth"
-                    Height="30"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLeftRight4}"
-                    AutomationProperties.Name="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}"
-                    Content="调整列宽"
-                    Padding="10,0"
-                    Style="{StaticResource DefButton}"
-                    ToolTip="{x:Static resx:ResUI.menuProfileAutofitColumnWidth}" />
+                        <Button
+                            x:Name="btnEditSub"
+                            AutomationProperties.Name="{x:Static resx:ResUI.menuSubEdit}"
+                            Style="{StaticResource WorkflowStepButton}"
+                            ToolTip="修改订阅">
+                            <StackPanel Orientation="Horizontal">
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource MaterialDesignDivider}"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="SemiBold"
+                                        Text="2" />
+                                </Border>
+                                <materialDesign:PackIcon
+                                    Width="14"
+                                    Height="14"
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Center"
+                                    Kind="Edit" />
+                                <TextBlock VerticalAlignment="Center" Text="修改订阅" />
+                            </StackPanel>
+                        </Button>
 
-                <Button
-                    x:Name="btnFastRealPing"
-                    Height="30"
-                    MinWidth="76"
-                    Margin="{StaticResource MarginLeftRight4}"
-                    Content="延迟测试"
-                    Padding="10,0"
-                    Style="{StaticResource DefButton}"
-                    ToolTip="{x:Static resx:ResUI.menuFastRealPing}" />
-                <Button
-                    x:Name="menuMixedTestServer"
-                    Width="30"
-                    Height="30"
-                    Margin="{StaticResource MarginLeftRight4}"
-                    Style="{StaticResource MaterialDesignFloatingActionMiniLightButton}"
-                    ToolTip="{x:Static resx:ResUI.menuMixedTestServer}"
-                    Visibility="Collapsed">
-                    <materialDesign:PackIcon VerticalAlignment="Center" Kind="Speedometer" />
-                </Button>
-            </WrapPanel>
-            <DataGrid
-                x:Name="lstProfiles"
-                Background="Transparent"
-                materialDesign:DataGridAssist.CellPadding="2,2"
-                AutoGenerateColumns="False"
-                BorderThickness="1"
-                CanUserAddRows="False"
-                CanUserResizeRows="False"
-                CanUserSortColumns="False"
-                EnableRowVirtualization="True"
-                Focusable="True"
-                GridLinesVisibility="All"
-                HeadersVisibility="All"
-                IsReadOnly="True"
-                RowHeaderWidth="40"
-                Style="{StaticResource DefDataGrid}">
-                <DataGrid.InputBindings>
-                    <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Ctrl+C" />
-                    <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Ctrl+V" />
-                    <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Delete" />
-                    <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Enter" />
-                </DataGrid.InputBindings>
-                <DataGrid.ContextMenu>
-                    <ContextMenu Style="{StaticResource DefContextMenu}">
-                        <MenuItem
-                            x:Name="menuSetDefaultServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuSetDefaultServer}"
-                            InputGestureText="Enter" />
-                        <MenuItem
-                            x:Name="menuEditServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuEditServer}"
-                            InputGestureText="Ctrl+D" />
-                        <MenuItem
-                            x:Name="menuCopyServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuCopyServer}" />
-                        <MenuItem
-                            x:Name="menuRemoveServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuRemoveServer}"
-                            InputGestureText="Back" />
-                        <MenuItem
-                            x:Name="menuRemoveDuplicateServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuRemoveDuplicateServer}" />
-                        <MenuItem
-                            x:Name="menuRemoveInvalidServerResult"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuRemoveInvalidServerResult}" />
-                        <MenuItem
-                            x:Name="menuGenerateCloudflareBestNodes"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="以此节点自动生成最优节点"
-                            Visibility="Collapsed" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuTcpingServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuTcpingServer}"
-                            InputGestureText="Ctrl+O" />
-                        <MenuItem
-                            x:Name="menuRealPingServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuRealPingServer}"
-                            InputGestureText="Ctrl+R" />
-                        <MenuItem
-                            x:Name="menuUdpTestServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuUdpTestServer}" />
-                        <MenuItem
-                            x:Name="menuSpeedServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuSpeedServer}"
-                            InputGestureText="Ctrl+T" />
-                        <MenuItem
-                            x:Name="menuSortServerResult"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuSortServerResult}" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuMoveToGroup"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuMoveToGroup}">
-                            <MenuItem Height="Auto">
-                                <MenuItem.Header>
-                                    <DockPanel>
-                                        <ComboBox
-                                            x:Name="cmbMoveToGroup"
-                                            Width="200"
-                                            materialDesign:HintAssist.Hint="{x:Static resx:ResUI.menuSubscription}"
-                                            DisplayMemberPath="Remarks"
-                                            FontSize="{DynamicResource StdFontSize}"
-                                            Style="{StaticResource MaterialDesignFilledComboBox}" />
-                                    </DockPanel>
-                                </MenuItem.Header>
-                            </MenuItem>
-                        </MenuItem>
-                        <MenuItem Header="{x:Static resx:ResUI.menuMoveTo}">
-                            <MenuItem
-                                x:Name="menuMoveTop"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuMoveTop}"
-                                InputGestureText="T" />
-                            <MenuItem
-                                x:Name="menuMoveUp"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuMoveUp}"
-                                InputGestureText="U" />
-                            <MenuItem
-                                x:Name="menuMoveDown"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuMoveDown}"
-                                InputGestureText="D" />
-                            <MenuItem
-                                x:Name="menuMoveBottom"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuMoveBottom}"
-                                InputGestureText="B" />
-                        </MenuItem>
-                        <MenuItem
-                            x:Name="menuSelectAll"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuSelectAll}"
-                            InputGestureText="Ctrl+A" />
-                        <Separator />
-                        <MenuItem
-                            x:Name="menuShareServer"
-                            Height="{StaticResource MenuItemHeight}"
-                            Header="{x:Static resx:ResUI.menuShareServer}"
-                            InputGestureText="Ctrl+F" />
-                        <MenuItem Header="{x:Static resx:ResUI.menuExportConfig}">
-                            <MenuItem
-                                x:Name="menuExport2ClientConfig"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuExport2ClientConfig}" />
-                            <MenuItem
-                                x:Name="menuExport2ClientConfigClipboard"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuExport2ClientConfigClipboard}" />
-                            <Separator />
-                            <MenuItem
-                                x:Name="menuExport2ShareUrl"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuExport2ShareUrl}"
-                                InputGestureText="Ctrl+C" />
-                            <MenuItem
-                                x:Name="menuExport2ShareUrlBase64"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuExport2ShareUrlBase64}" />
-                            <MenuItem
-                                x:Name="menuExport2InnerUri"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuExport2InnerUri}" />
-                        </MenuItem>
-                        <Separator />
-                        <MenuItem Header="{x:Static resx:ResUI.menuGenGroupServer}">
-                            <MenuItem
-                                x:Name="menuGenGroupAllServer"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuAllServers}" />
-                            <MenuItem
-                                x:Name="menuGenGroupRegionServer"
-                                Height="{StaticResource MenuItemHeight}"
-                                Header="{x:Static resx:ResUI.menuGenRegionGroup}" />
-                        </MenuItem>
-                    </ContextMenu>
-                </DataGrid.ContextMenu>
-                <DataGrid.Resources>
-                    <Style BasedOn="{StaticResource MaterialDesignDataGridRow}" TargetType="DataGridRow">
-                        <EventSetter Event="MouseDoubleClick" Handler="LstProfiles_MouseDoubleClick" />
-                    </Style>
-                    <Style BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}" TargetType="DataGridColumnHeader">
-                        <EventSetter Event="Click" Handler="LstProfiles_ColumnHeader_Click" />
-                    </Style>
+                        <TextBlock
+                            Margin="10,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Opacity="0.45"
+                            Text="──→" />
 
-                    <Style BasedOn="{StaticResource MaterialDesignDataGridCell}" TargetType="DataGridCell">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
-                                <Setter Property="Foreground" Value="Black" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.Resources>
-                <DataGrid.Columns>
-                    <base:MyDGTextColumn
-                        Width="80"
-                        Binding="{Binding ConfigType}"
-                        ExName="ConfigType"
-                        Header="{x:Static resx:ResUI.LvServiceType}" />
-                    <base:MyDGTextColumn
-                        Width="150"
-                        Binding="{Binding Remarks}"
-                        ExName="Remarks"
-                        Header="{x:Static resx:ResUI.LvRemarks}" />
-                    <base:MyDGTextColumn
-                        Width="120"
-                        Binding="{Binding Address}"
-                        ExName="Address"
-                        Header="{x:Static resx:ResUI.LvAddress}" />
-                    <base:MyDGTextColumn
-                        x:Name="colIpInfo"
-                        Width="100"
-                        Binding="{Binding IpInfo}"
-                        ExName="IpInfo"
-                        Header="{x:Static resx:ResUI.LvTestIpInfo}" />
-                    <base:MyDGTextColumn
-                        Width="60"
-                        Binding="{Binding Port}"
-                        ExName="Port"
-                        Header="{x:Static resx:ResUI.LvPort}" />
-                    <base:MyDGTextColumn
-                        Width="100"
-                        Binding="{Binding Network}"
-                        ExName="Network"
-                        Header="{x:Static resx:ResUI.LvTransportProtocol}" />
-                    <base:MyDGTextColumn
-                        Width="100"
-                        Binding="{Binding StreamSecurity}"
-                        ExName="StreamSecurity"
-                        Header="{x:Static resx:ResUI.LvTLS}" />
-                    <base:MyDGTextColumn
-                        Width="100"
-                        Binding="{Binding SubRemarks}"
-                        ExName="SubRemarks"
-                        Header="{x:Static resx:ResUI.LvSubscription}" />
-                    <base:MyDGTextColumn
-                        Width="100"
-                        Binding="{Binding DelayVal}"
-                        ExName="DelayVal"
-                        Header="{x:Static resx:ResUI.LvTestDelay}"
-                        SortMemberPath="Delay">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="HorizontalAlignment" Value="Right" />
-                                <Setter Property="Foreground" Value="{Binding Delay, Converter={StaticResource DelayColorConverter}}" />
+                        <Button
+                            x:Name="btnFastRealPing"
+                            AutomationProperties.Name="延迟测试"
+                            Style="{StaticResource WorkflowPrimaryStepButton}"
+                            ToolTip="{x:Static resx:ResUI.menuFastRealPing}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Background="#26000000"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Text="3" />
+                                </Border>
+                                <materialDesign:PackIcon
+                                    Width="15"
+                                    Height="15"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    Kind="LightningBolt" />
+                                <TextBlock VerticalAlignment="Center" Text="延迟测试" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button
+                            x:Name="menuMixedTestServer"
+                            Width="30"
+                            Height="30"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource MaterialDesignFloatingActionMiniLightButton}"
+                            ToolTip="{x:Static resx:ResUI.menuMixedTestServer}"
+                            Visibility="Collapsed">
+                            <materialDesign:PackIcon VerticalAlignment="Center" Kind="Speedometer" />
+                        </Button>
+                    </WrapPanel>
+                </Grid>
+
+                <!-- Row 1: 全高节点列表 DataGrid -->
+                <Border
+                    Grid.Row="1"
+                    BorderBrush="{DynamicResource MaterialDesignDivider}"
+                    BorderThickness="1"
+                    ClipToBounds="True"
+                    CornerRadius="8">
+                    <DataGrid
+                        x:Name="lstProfiles"
+                        materialDesign:DataGridAssist.CellPadding="6,4"
+                        AutoGenerateColumns="False"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        CanUserAddRows="False"
+                        CanUserResizeRows="False"
+                        CanUserSortColumns="False"
+                        EnableRowVirtualization="True"
+                        Focusable="True"
+                        GridLinesVisibility="Horizontal"
+                        HeadersVisibility="All"
+                        IsReadOnly="True"
+                        RowHeaderWidth="40"
+                        RowHeight="34"
+                        Style="{StaticResource DefDataGrid}">
+                        <DataGrid.InputBindings>
+                            <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Ctrl+C" />
+                            <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Ctrl+V" />
+                            <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Delete" />
+                            <KeyBinding Command="ApplicationCommands.NotACommand" Gesture="Enter" />
+                        </DataGrid.InputBindings>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu Style="{StaticResource DefContextMenu}">
+                                <MenuItem
+                                    x:Name="menuSetDefaultServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuSetDefaultServer}"
+                                    InputGestureText="Enter" />
+                                <MenuItem
+                                    x:Name="menuEditServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuEditServer}"
+                                    InputGestureText="Ctrl+D" />
+                                <MenuItem
+                                    x:Name="menuCopyServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuCopyServer}" />
+                                <MenuItem
+                                    x:Name="menuRemoveServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuRemoveServer}"
+                                    InputGestureText="Back" />
+                                <MenuItem
+                                    x:Name="menuRemoveDuplicateServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuRemoveDuplicateServer}" />
+                                <MenuItem
+                                    x:Name="menuRemoveInvalidServerResult"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuRemoveInvalidServerResult}" />
+                                <MenuItem
+                                    x:Name="menuGenerateCloudflareBestNodes"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="以此节点自动生成最优节点"
+                                    Visibility="Collapsed" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuTcpingServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuTcpingServer}"
+                                    InputGestureText="Ctrl+O" />
+                                <MenuItem
+                                    x:Name="menuRealPingServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuRealPingServer}"
+                                    InputGestureText="Ctrl+R" />
+                                <MenuItem
+                                    x:Name="menuUdpTestServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuUdpTestServer}" />
+                                <MenuItem
+                                    x:Name="menuSpeedServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuSpeedServer}"
+                                    InputGestureText="Ctrl+T" />
+                                <MenuItem
+                                    x:Name="menuSortServerResult"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuSortServerResult}" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuMoveToGroup"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuMoveToGroup}">
+                                    <MenuItem Height="Auto">
+                                        <MenuItem.Header>
+                                            <DockPanel>
+                                                <ComboBox
+                                                    x:Name="cmbMoveToGroup"
+                                                    Width="200"
+                                                    materialDesign:HintAssist.Hint="{x:Static resx:ResUI.menuSubscription}"
+                                                    DisplayMemberPath="Remarks"
+                                                    FontSize="{DynamicResource StdFontSize}"
+                                                    Style="{StaticResource MaterialDesignFilledComboBox}" />
+                                            </DockPanel>
+                                        </MenuItem.Header>
+                                    </MenuItem>
+                                </MenuItem>
+                                <MenuItem Header="{x:Static resx:ResUI.menuMoveTo}">
+                                    <MenuItem
+                                        x:Name="menuMoveTop"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuMoveTop}"
+                                        InputGestureText="T" />
+                                    <MenuItem
+                                        x:Name="menuMoveUp"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuMoveUp}"
+                                        InputGestureText="U" />
+                                    <MenuItem
+                                        x:Name="menuMoveDown"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuMoveDown}"
+                                        InputGestureText="D" />
+                                    <MenuItem
+                                        x:Name="menuMoveBottom"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuMoveBottom}"
+                                        InputGestureText="B" />
+                                </MenuItem>
+                                <MenuItem
+                                    x:Name="menuSelectAll"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuSelectAll}"
+                                    InputGestureText="Ctrl+A" />
+                                <Separator />
+                                <MenuItem
+                                    x:Name="menuShareServer"
+                                    Height="{StaticResource MenuItemHeight}"
+                                    Header="{x:Static resx:ResUI.menuShareServer}"
+                                    InputGestureText="Ctrl+F" />
+                                <MenuItem Header="{x:Static resx:ResUI.menuExportConfig}">
+                                    <MenuItem
+                                        x:Name="menuExport2ClientConfig"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuExport2ClientConfig}" />
+                                    <MenuItem
+                                        x:Name="menuExport2ClientConfigClipboard"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuExport2ClientConfigClipboard}" />
+                                    <Separator />
+                                    <MenuItem
+                                        x:Name="menuExport2ShareUrl"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuExport2ShareUrl}"
+                                        InputGestureText="Ctrl+C" />
+                                    <MenuItem
+                                        x:Name="menuExport2ShareUrlBase64"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuExport2ShareUrlBase64}" />
+                                    <MenuItem
+                                        x:Name="menuExport2InnerUri"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuExport2InnerUri}" />
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Header="{x:Static resx:ResUI.menuGenGroupServer}">
+                                    <MenuItem
+                                        x:Name="menuGenGroupAllServer"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuAllServers}" />
+                                    <MenuItem
+                                        x:Name="menuGenGroupRegionServer"
+                                        Height="{StaticResource MenuItemHeight}"
+                                        Header="{x:Static resx:ResUI.menuGenRegionGroup}" />
+                                </MenuItem>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Resources>
+                            <Style BasedOn="{StaticResource MaterialDesignDataGridRow}" TargetType="DataGridRow">
+                                <EventSetter Event="MouseDoubleClick" Handler="LstProfiles_MouseDoubleClick" />
                             </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </base:MyDGTextColumn>
-                    <base:MyDGTextColumn
-                        Width="100"
-                        Binding="{Binding SpeedVal}"
-                        ExName="SpeedVal"
-                        Header="{x:Static resx:ResUI.LvTestSpeed}">
-                        <DataGridTextColumn.ElementStyle>
-                            <Style TargetType="{x:Type TextBlock}">
-                                <Setter Property="HorizontalAlignment" Value="Right" />
+                            <Style BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}" TargetType="DataGridColumnHeader">
+                                <EventSetter Event="Click" Handler="LstProfiles_ColumnHeader_Click" />
                             </Style>
-                        </DataGridTextColumn.ElementStyle>
-                    </base:MyDGTextColumn>
 
-                    <base:MyDGTextColumn
-                        x:Name="colTodayUp"
-                        Width="100"
-                        Binding="{Binding TodayUp}"
-                        ExName="TodayUp"
-                        Header="{x:Static resx:ResUI.LvTodayUploadDataAmount}" />
+                            <Style BasedOn="{StaticResource MaterialDesignDataGridCell}" TargetType="DataGridCell">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
+                                        <Setter Property="Foreground" Value="Black" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary.Light}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <base:MyDGTextColumn
+                                Width="80"
+                                Binding="{Binding ConfigType}"
+                                ExName="ConfigType"
+                                Header="{x:Static resx:ResUI.LvServiceType}" />
+                            <base:MyDGTextColumn
+                                Width="150"
+                                Binding="{Binding Remarks}"
+                                ExName="Remarks"
+                                Header="{x:Static resx:ResUI.LvRemarks}" />
+                            <base:MyDGTextColumn
+                                Width="120"
+                                Binding="{Binding Address}"
+                                ExName="Address"
+                                Header="{x:Static resx:ResUI.LvAddress}" />
+                            <base:MyDGTextColumn
+                                x:Name="colIpInfo"
+                                Width="100"
+                                Binding="{Binding IpInfo}"
+                                ExName="IpInfo"
+                                Header="{x:Static resx:ResUI.LvTestIpInfo}" />
+                            <base:MyDGTextColumn
+                                Width="60"
+                                Binding="{Binding Port}"
+                                ExName="Port"
+                                Header="{x:Static resx:ResUI.LvPort}" />
+                            <base:MyDGTextColumn
+                                Width="100"
+                                Binding="{Binding Network}"
+                                ExName="Network"
+                                Header="{x:Static resx:ResUI.LvTransportProtocol}" />
+                            <base:MyDGTextColumn
+                                Width="100"
+                                Binding="{Binding StreamSecurity}"
+                                ExName="StreamSecurity"
+                                Header="{x:Static resx:ResUI.LvTLS}" />
+                            <base:MyDGTextColumn
+                                Width="100"
+                                Binding="{Binding SubRemarks}"
+                                ExName="SubRemarks"
+                                Header="{x:Static resx:ResUI.LvSubscription}" />
+                            <base:MyDGTextColumn
+                                Width="100"
+                                Binding="{Binding DelayVal}"
+                                ExName="DelayVal"
+                                Header="{x:Static resx:ResUI.LvTestDelay}"
+                                SortMemberPath="Delay">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                        <Setter Property="Foreground" Value="{Binding Delay, Converter={StaticResource DelayColorConverter}}" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </base:MyDGTextColumn>
+                            <base:MyDGTextColumn
+                                Width="100"
+                                Binding="{Binding SpeedVal}"
+                                ExName="SpeedVal"
+                                Header="{x:Static resx:ResUI.LvTestSpeed}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Setter Property="HorizontalAlignment" Value="Right" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </base:MyDGTextColumn>
 
-                    <base:MyDGTextColumn
-                        x:Name="colTodayDown"
-                        Width="100"
-                        Binding="{Binding TodayDown}"
-                        ExName="TodayDown"
-                        Header="{x:Static resx:ResUI.LvTodayDownloadDataAmount}" />
-                    <base:MyDGTextColumn
-                        x:Name="colTotalUp"
-                        Width="100"
-                        Binding="{Binding TotalUp}"
-                        ExName="TotalUp"
-                        Header="{x:Static resx:ResUI.LvTotalUploadDataAmount}" />
-                    <base:MyDGTextColumn
-                        x:Name="colTotalDown"
-                        Width="100"
-                        Binding="{Binding TotalDown}"
-                        ExName="TotalDown"
-                        Header="{x:Static resx:ResUI.LvTotalDownloadDataAmount}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </DockPanel>
-    </Grid>
+                            <base:MyDGTextColumn
+                                x:Name="colTodayUp"
+                                Width="100"
+                                Binding="{Binding TodayUp}"
+                                ExName="TodayUp"
+                                Header="{x:Static resx:ResUI.LvTodayUploadDataAmount}" />
+
+                            <base:MyDGTextColumn
+                                x:Name="colTodayDown"
+                                Width="100"
+                                Binding="{Binding TodayDown}"
+                                ExName="TodayDown"
+                                Header="{x:Static resx:ResUI.LvTodayDownloadDataAmount}" />
+                            <base:MyDGTextColumn
+                                x:Name="colTotalUp"
+                                Width="100"
+                                Binding="{Binding TotalUp}"
+                                ExName="TotalUp"
+                                Header="{x:Static resx:ResUI.LvTotalUploadDataAmount}" />
+                            <base:MyDGTextColumn
+                                x:Name="colTotalDown"
+                                Width="100"
+                                Binding="{Binding TotalDown}"
+                                ExName="TotalDown"
+                                Header="{x:Static resx:ResUI.LvTotalDownloadDataAmount}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
 </reactiveui:ReactiveUserControl>

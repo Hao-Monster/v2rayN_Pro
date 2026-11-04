@@ -2,6 +2,16 @@ namespace ServiceLib.ViewModels;
 
 public partial class SubscriptionInfoViewModel : MyReactiveObject
 {
+    private NetworkRecoveryEligibility? _configuration;
+    private int _configurationRefreshVersion;
+    private bool _receivedNetworkStatus;
+
+    [Reactive]
+    public partial bool IsNetworkSetupRunning { get; private set; }
+
+    [Reactive]
+    public partial bool HasNetworkConfiguration { get; private set; }
+
     [Reactive]
     public partial string SubscriptionName { get; set; } = "订阅信息";
 
@@ -33,13 +43,13 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
     public partial bool HasSupportUrl { get; set; }
 
     [Reactive]
-    public partial string NetworkStatusText { get; set; } = "正在检查当前网络";
+    public partial string NetworkStatusText { get; set; } = "正在读取本地配置";
 
     [Reactive]
     public partial string NetworkStatusDetail { get; set; } = string.Empty;
 
     [Reactive]
-    public partial string NetworkStatusColor { get; set; } = "#F9A825";
+    public partial string NetworkStatusColor { get; set; } = "#616161";
 
     [Reactive]
     public partial bool IsNetworkRepairing { get; set; }
@@ -68,7 +78,8 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
             this.WhenAnyValue(x => x.HasSupportUrl));
         OneClickNetworkSetupCmd = ReactiveCommand.Create(
             () => AppEvents.OneClickNetworkSetupRequested.Publish(),
-            this.WhenAnyValue(x => x.IsNetworkRepairing, repairing => !repairing));
+            this.WhenAnyValue(x => x.HasNetworkConfiguration, x => x.IsNetworkRepairing, x => x.IsNetworkSetupRunning,
+                (configured, repairing, running) => configured && !repairing && !running));
         ContactSupportCmd = ReactiveCommand.Create(() =>
         {
             if (HasSupportUrl)
@@ -90,16 +101,28 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(async _ => await Refresh(_config.SubIndexId));
-        AppEvents.ProfilesRefreshRequested
+        AppEvents.ProfilesRefreshed
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(async _ => await RefreshRuntimeStatus());
+            .Subscribe(async _ =>
+            {
+                await RefreshNetworkConfiguration();
+                await RefreshRuntimeStatus();
+            });
+        AppEvents.NetworkSetupRunningChanged
+            .AsObservable()
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(running => IsNetworkSetupRunning = running);
         AppEvents.NetworkAvailabilityChanged
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(async info =>
             {
-                ApplyNetworkStatus(info);
+                if (NetworkRecoveryEligibility.AcceptsStatus(_configuration, info, AppEvents.ProfileRevision))
+                {
+                    _receivedNetworkStatus = true;
+                    ApplyNetworkStatus(info);
+                }
                 await RefreshRuntimeStatus();
             });
 
@@ -130,7 +153,7 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
             ENetworkAvailabilityState.Available => "#2E7D32",
             ENetworkAvailabilityState.Repairing or ENetworkAvailabilityState.Checking => "#F9A825",
             ENetworkAvailabilityState.Repaired => "#1976D2",
-            ENetworkAvailabilityState.NoAvailableNode => "#C62828",
+            ENetworkAvailabilityState.NoAvailableNode or ENetworkAvailabilityState.LocalNodesUnavailable or ENetworkAvailabilityState.SetupFailed => "#C62828",
             ENetworkAvailabilityState.LocalNetworkUnavailable => "#616161",
             _ => "#616161"
         };
@@ -138,6 +161,7 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
 
     private async Task Refresh(string? subId)
     {
+        await RefreshNetworkConfiguration();
         var item = subId.IsNotEmpty()
             ? await AppManager.Instance.GetSubItem(subId)
             : null;
@@ -193,6 +217,26 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
         SupportUrl = NormalizeSupportUrl(item.SupportUrl);
         HasSupportUrl = SupportUrl.IsNotEmpty();
         await RefreshRuntimeStatus();
+    }
+
+    private async Task RefreshNetworkConfiguration()
+    {
+        var version = ++_configurationRefreshVersion;
+        var configuration = await NetworkRecoveryEligibility.ReadAsync();
+        if (version != _configurationRefreshVersion || _configuration == configuration)
+        {
+            return;
+        }
+
+        var keepRuntimeStatus = _receivedNetworkStatus
+            && configuration.ShouldKeepRuntimeStatus(_configuration, IsNetworkSetupRunning);
+        _configuration = configuration;
+        HasNetworkConfiguration = configuration.CanSetUp;
+        if (!keepRuntimeStatus)
+        {
+            _receivedNetworkStatus = false;
+            ApplyNetworkStatus(new(ENetworkAvailabilityState.Idle, configuration.IdleMessage));
+        }
     }
 
     private async Task RefreshRuntimeStatus()

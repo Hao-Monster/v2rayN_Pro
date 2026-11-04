@@ -15,7 +15,6 @@ public partial class ProfilesView
     public ProfilesView()
     {
         InitializeComponent();
-        lstGroup.MaxHeight = Math.Floor(SystemParameters.WorkArea.Height * 0.20 / 40) * 40;
 
         _config = AppManager.Instance.Config;
 
@@ -40,9 +39,10 @@ public partial class ProfilesView
             this.OneWayBind(ViewModel, vm => vm.ProfileItems, v => v.lstProfiles.ItemsSource).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.SelectedProfile, v => v.lstProfiles.SelectedItem).DisposeWith(disposables);
 
-            this.OneWayBind(ViewModel, vm => vm.SubItems, v => v.lstGroup.ItemsSource).DisposeWith(disposables);
-            this.Bind(ViewModel, vm => vm.SelectedSub, v => v.lstGroup.SelectedItem).DisposeWith(disposables);
+            this.OneWayBind(ViewModel, vm => vm.SubscriptionCards, v => v.lstGroup.ItemsSource).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.SelectedSubscriptionCard, v => v.lstGroup.SelectedItem).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.ServerFilter, v => v.txtServerFilter.Text).DisposeWith(disposables);
+            this.BindCommand(ViewModel, vm => vm.AddSubCmd, v => v.btnAddSub).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.EditSubCmd, v => v.btnEditSub).DisposeWith(disposables);
 
             //servers delete
@@ -348,7 +348,7 @@ public partial class ProfilesView
                         {
                             item2.Visibility = Visibility.Hidden;
                         }
-                        else
+                        else if (item.Width > 0)
                         {
                             item2.Width = item.Width;
                             item2.DisplayIndex = displayIndex++;
@@ -394,8 +394,19 @@ public partial class ProfilesView
     {
         try
         {
+            if (lstProfiles.ActualWidth <= 0)
+            {
+                return;
+            }
+
+            var columns = lstProfiles.Columns.Cast<MyDGTextColumn>().ToList();
+            if (!columns.Any(c => c.Visibility == Visibility.Visible && c.ActualWidth > 0))
+            {
+                return;
+            }
+
             List<ColumnItem> lvColumnItem = [];
-            foreach (var item2 in lstProfiles.Columns.Cast<MyDGTextColumn>())
+            foreach (var item2 in columns)
             {
                 lvColumnItem.Add(new()
                 {

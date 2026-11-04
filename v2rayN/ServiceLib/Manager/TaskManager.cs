@@ -113,6 +113,7 @@ public class TaskManager
                 continue;
             }
 
+            var tickets = await SubscriptionWrites.Capture([item.Id]);
             var success = await SubscriptionHandler.UpdateProcess(_config, item.Id, true, async (success, msg) =>
             {
                 await _updateFunc?.Invoke(success, msg);
@@ -120,13 +121,24 @@ public class TaskManager
                 {
                     Logging.SaveLog($"Update subscription end. {msg}");
                 }
-            });
+            }, tickets);
             if (success)
             {
-                AppEvents.SubscriptionAutoSpeedtestRequested.Publish();
+                AppEvents.SubscriptionAutoSpeedtestRequested.Publish(null);
             }
-            item.UpdateTime = updateTime;
-            await ConfigHandler.AddSubItem(_config, item);
+            else
+            {
+                await tickets[item.Id].Apply(async () =>
+                {
+                    var current = await AppManager.Instance.GetSubItem(item.Id);
+                    if (current is null)
+                    {
+                        return false;
+                    }
+                    current.UpdateTime = updateTime;
+                    return await ConfigHandler.AddSubItem(_config, current) == 0;
+                });
+            }
             await Task.Delay(1000);
         }
     }

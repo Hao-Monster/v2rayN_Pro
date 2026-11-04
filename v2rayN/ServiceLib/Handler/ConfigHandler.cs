@@ -6,6 +6,7 @@ public static class ConfigHandler
 {
     private static readonly string _configRes = Global.ConfigFileName;
     private static readonly string _tag = "ConfigHandler";
+    private static readonly SemaphoreSlim _saveConfigLock = new(1, 1);
 
     #region ConfigHandler
 
@@ -98,6 +99,7 @@ public static class ConfigHandler
         config.UiItem ??= new();
         config.UiItem.MainColumnItem ??= [];
         config.UiItem.WindowSizeItem ??= [];
+        var uiLayoutMigrated = ApplyUiLayoutMigration(config.UiItem);
 
         if (config.UiItem.CurrentLanguage.IsNullOrEmpty())
         {
@@ -188,6 +190,11 @@ public static class ConfigHandler
             config.SystemProxyItem.SystemProxyExceptions = Utils.IsWindows() ? Global.SystemProxyExceptionsWindows : Global.SystemProxyExceptionsLinux;
         }
 
+        if (result.IsNotEmpty() && uiLayoutMigrated)
+        {
+            TrySaveConfigCore(config);
+        }
+
         return config;
     }
 
@@ -199,6 +206,7 @@ public static class ConfigHandler
     /// <returns>0 if successful, -1 if failed</returns>
     public static async Task<int> SaveConfig(Config config)
     {
+        await _saveConfigLock.WaitAsync();
         try
         {
             //save temp file
@@ -220,8 +228,38 @@ public static class ConfigHandler
             Logging.SaveLog(_tag, ex);
             return -1;
         }
+        finally
+        {
+            _saveConfigLock.Release();
+        }
 
         return 0;
+    }
+
+    private static void TrySaveConfigCore(Config config)
+    {
+        _saveConfigLock.Wait();
+        try
+        {
+            var resPath = Utils.GetConfigPath(_configRes);
+            var tempPath = $"{resPath}_temp";
+
+            var content = JsonUtils.Serialize(config, true, true);
+            if (content.IsNullOrEmpty())
+            {
+                return;
+            }
+            File.WriteAllText(tempPath, content);
+            File.Move(tempPath, resPath, true);
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog(_tag, ex);
+        }
+        finally
+        {
+            _saveConfigLock.Release();
+        }
     }
 
     #endregion ConfigHandler
@@ -334,7 +372,10 @@ public static class ConfigHandler
     /// <param name="config">Current configuration</param>
     /// <param name="indexes">List of server profiles to remove</param>
     /// <returns>0 if successful</returns>
-    public static async Task<int> RemoveServers(Config config, List<ProfileItem> indexes)
+    public static Task<int> RemoveServers(Config config, List<ProfileItem> indexes) =>
+        SubscriptionWrites.Edit(indexes.Select(item => item.Subid), () => RemoveServersCore(config, indexes));
+
+    private static async Task<int> RemoveServersCore(Config config, List<ProfileItem> indexes)
     {
         var subid = "TempRemoveSubId";
         foreach (var item in indexes)
@@ -624,7 +665,10 @@ public static class ConfigHandler
     /// <param name="config">Current configuration</param>
     /// <param name="profileItem">Profile item with updated properties</param>
     /// <returns>0 if successful, -1 if failed</returns>
-    public static async Task<int> EditCustomServer(Config config, ProfileItem profileItem)
+    public static Task<int> EditCustomServer(Config config, ProfileItem profileItem) =>
+        SubscriptionWrites.Edit([profileItem.Subid], () => EditCustomServerCore(config, profileItem));
+
+    private static async Task<int> EditCustomServerCore(Config config, ProfileItem profileItem)
     {
         var item = await AppManager.Instance.GetProfileItem(profileItem.IndexId);
         if (item is null)
@@ -1264,7 +1308,7 @@ public static class ConfigHandler
         {
             //profileItem.SetProtocolExtra();
             profileItem.SetProtocolExtra(profileItem.GetProtocolExtra());
-            await SQLiteHelper.Instance.ReplaceAsync(profileItem);
+            await SubscriptionWrites.Edit([profileItem.Subid], () => SQLiteHelper.Instance.ReplaceAsync(profileItem));
         }
         return 0;
     }
@@ -2059,7 +2103,10 @@ public static class ConfigHandler
     /// <param name="subid">Subscription ID to associate with the servers</param>
     /// <param name="isSub">Whether this is from a subscription</param>
     /// <returns>Number of successfully imported servers or -1 if failed</returns>
-    public static async Task<int> AddBatchServers(Config config, string strData, string subid, bool isSub)
+    public static Task<int> AddBatchServers(Config config, string strData, string subid, bool isSub) =>
+        SubscriptionWrites.Edit([subid], () => AddBatchServersCore(config, strData, subid, isSub));
+
+    private static async Task<int> AddBatchServersCore(Config config, string strData, string subid, bool isSub)
     {
         if (strData.IsNullOrEmpty())
         {
@@ -2209,7 +2256,10 @@ public static class ConfigHandler
     /// <param name="config">Current configuration</param>
     /// <param name="subItem">Subscription item to add or update</param>
     /// <returns>0 if successful, -1 if failed</returns>
-    public static async Task<int> AddSubItem(Config config, SubItem subItem)
+    public static Task<int> AddSubItem(Config config, SubItem subItem) =>
+        SubscriptionWrites.Edit([subItem.Id], () => AddSubItemCore(config, subItem));
+
+    private static async Task<int> AddSubItemCore(Config config, SubItem subItem)
     {
         var item = await AppManager.Instance.GetSubItem(subItem.Id);
         if (item is null)
@@ -2305,7 +2355,10 @@ public static class ConfigHandler
     /// <param name="config">Current configuration</param>
     /// <param name="id">Subscription ID to delete</param>
     /// <returns>0 if successful</returns>
-    public static async Task<int> DeleteSubItem(Config config, string id)
+    public static Task<int> DeleteSubItem(Config config, string id) =>
+        SubscriptionWrites.Edit([id], () => DeleteSubItemCore(config, id));
+
+    private static async Task<int> DeleteSubItemCore(Config config, string id)
     {
         var item = await AppManager.Instance.GetSubItem(id);
         if (item is null)
@@ -2331,7 +2384,10 @@ public static class ConfigHandler
     /// <param name="lstProfile">List of profiles to move</param>
     /// <param name="subid">Target subscription ID</param>
     /// <returns>0 if successful</returns>
-    public static async Task<int> MoveToGroup(Config config, List<ProfileItem> lstProfile, string subid)
+    public static Task<int> MoveToGroup(Config config, List<ProfileItem> lstProfile, string subid) =>
+        SubscriptionWrites.Edit(lstProfile.Select(item => item.Subid).Append(subid), () => MoveToGroupCore(config, lstProfile, subid));
+
+    private static async Task<int> MoveToGroupCore(Config config, List<ProfileItem> lstProfile, string subid)
     {
         foreach (var item in lstProfile)
         {
@@ -3027,6 +3083,36 @@ public static class ConfigHandler
         uiItem.MainGirdHeight2 = (int)(height2 + 0.1);
 
         return 0;
+    }
+
+    public static bool ApplyUiLayoutMigration(UIItem? uiItem)
+    {
+        if (uiItem is null)
+        {
+            return false;
+        }
+
+        var changed = false;
+
+        if (!Enum.IsDefined(uiItem.MainWorkspacePage))
+        {
+            uiItem.MainWorkspacePage = EMainWorkspacePage.Home;
+            changed = true;
+        }
+        else if (uiItem.MainWorkspacePage is EMainWorkspacePage.ClashProxies or EMainWorkspacePage.ClashConnections)
+        {
+            uiItem.MainWorkspacePage = EMainWorkspacePage.Proxy;
+            changed = true;
+        }
+
+        if (!uiItem.LeftRailLayoutMigrated)
+        {
+            uiItem.MainGirdOrientation = EGirdOrientation.Tab;
+            uiItem.LeftRailLayoutMigrated = true;
+            changed = true;
+        }
+
+        return changed;
     }
 
     #endregion UIItem

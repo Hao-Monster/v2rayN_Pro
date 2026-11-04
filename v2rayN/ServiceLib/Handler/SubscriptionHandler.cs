@@ -4,27 +4,25 @@ public static class SubscriptionHandler
 {
     private sealed record SubscriptionDownloadResult(string Content, IReadOnlyDictionary<string, string> Headers);
 
-    public static async Task<bool> UpdateProcess(Config config, string subId, bool blProxy, Func<bool, string, Task> updateFunc)
+    public static Task<bool> UpdateProcess(Config config, string subId, bool blProxy, Func<bool, string, Task> updateFunc) =>
+        UpdateProcess(config, subId, blProxy, updateFunc, null);
+
+    internal static async Task<bool> UpdateProcess(Config config, string subId, bool blProxy, Func<bool, string, Task> updateFunc,
+        Dictionary<string, SubscriptionWrites.Ticket>? tickets)
     {
         await updateFunc?.Invoke(false, ResUI.MsgUpdateSubscriptionStart);
-        var subItem = await AppManager.Instance.SubItems();
-
-        if (subItem is not { Count: > 0 })
+        var downloads = await SubscriptionWrites.ReadDownloadItems(subId, tickets);
+        if (downloads.Count == 0)
         {
             await updateFunc?.Invoke(false, ResUI.MsgNoValidSubscription);
             return false;
         }
 
         var successCount = 0;
-        foreach (var item in subItem)
+        foreach (var (item, ticket) in downloads)
         {
             try
             {
-                if (!IsValidSubscription(item, subId))
-                {
-                    continue;
-                }
-
                 var hashCode = $"{item.Remarks}->";
                 if (item.Enabled == false)
                 {
@@ -40,11 +38,8 @@ public static class SubscriptionHandler
                 var result = await DownloadAllSubscriptions(config, item, blProxy, downloadHandle);
 
                 // Process download result
-                if (await ProcessDownloadResult(config, item.Id, result.Content, hashCode, updateFunc))
+                if (await ProcessDownloadResult(config, item.Id, result, hashCode, updateFunc, ticket))
                 {
-                    ApplySubscriptionMetadata(item, result.Headers);
-                    item.UpdateTime = DateTimeOffset.Now.ToUnixTimeSeconds();
-                    await ConfigHandler.AddSubItem(config, item);
                     AppEvents.SubscriptionsRefreshRequested.Publish();
                     successCount++;
                 }
@@ -65,7 +60,7 @@ public static class SubscriptionHandler
         return success;
     }
 
-    private static bool IsValidSubscription(SubItem item, string subId)
+    internal static bool IsValidSubscription(SubItem item, string subId)
     {
         var id = item.Id.TrimEx();
         var url = item.Url.TrimEx();
@@ -278,8 +273,10 @@ public static class SubscriptionHandler
         return decoded.Replace("\\n", Environment.NewLine).Trim();
     }
 
-    private static async Task<bool> ProcessDownloadResult(Config config, string id, string result, string hashCode, Func<bool, string, Task> updateFunc)
+    private static async Task<bool> ProcessDownloadResult(Config config, string id, SubscriptionDownloadResult download, string hashCode,
+        Func<bool, string, Task> updateFunc, SubscriptionWrites.Ticket ticket)
     {
+        var result = download.Content;
         if (result.IsNullOrEmpty())
         {
             await updateFunc?.Invoke(false, $"{hashCode}{ResUI.MsgSubscriptionDecodingFailed}");
@@ -297,18 +294,21 @@ public static class SubscriptionHandler
         await updateFunc?.Invoke(false, $"{hashCode}{ResUI.MsgStartParsingSubscription}");
 
         // Add servers to configuration
-        var ret = await ConfigHandler.AddBatchServers(config, result, id, true);
-        if (ret <= 0)
+        var applied = await ticket.Apply(async () =>
         {
-            Logging.SaveLog("FailedImportSubscription");
-            Logging.SaveLog(result);
-        }
+            var current = await AppManager.Instance.GetSubItem(id);
+            if (current is null || !current.Enabled || await ConfigHandler.AddBatchServers(config, result, id, true) <= 0)
+            {
+                return false;
+            }
+            ApplySubscriptionMetadata(current, download.Headers);
+            current.UpdateTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+            return await ConfigHandler.AddSubItem(config, current) == 0;
+        });
 
-        // Update completion message
-        await updateFunc?.Invoke(false, ret > 0
-                ? $"{hashCode}{ResUI.MsgUpdateSubscriptionEnd}"
-                : $"{hashCode}{ResUI.MsgFailedImportSubscription}");
-
-        return ret > 0;
+        await updateFunc?.Invoke(false, applied
+            ? $"{hashCode}{ResUI.MsgUpdateSubscriptionEnd}"
+            : $"{hashCode}{ResUI.MsgFailedImportSubscription}");
+        return applied;
     }
 }

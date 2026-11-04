@@ -40,7 +40,7 @@ public partial class ProfilesView : ReactiveUserControl<ProfilesViewModel>
             this.Bind(ViewModel, vm => vm.SelectedProfile, v => v.lstProfiles.SelectedItem).DisposeWith(disposables);
 
             // this.OneWayBind(ViewModel, vm => vm.SubItems, v => v.lstGroup.ItemsSource).DisposeWith(disposables);
-            this.Bind(ViewModel, vm => vm.SelectedSub, v => v.lstGroup.SelectedItem).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.SelectedSubscriptionCard, v => v.lstGroup.SelectedItem).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.ServerFilter, v => v.txtServerFilter.Text).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.AddSubCmd, v => v.btnAddSub).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.EditSubCmd, v => v.btnEditSub).DisposeWith(disposables);
@@ -403,7 +403,7 @@ public partial class ProfilesView : ReactiveUserControl<ProfilesViewModel>
                         {
                             item2.IsVisible = false;
                         }
-                        else
+                        else if (item.Width > 0)
                         {
                             item2.Width = new DataGridLength(item.Width, DataGridLengthUnitType.Pixel);
                             item2.DisplayIndex = displayIndex++;
@@ -448,6 +448,11 @@ public partial class ProfilesView : ReactiveUserControl<ProfilesViewModel>
     {
         try
         {
+            if (lstProfiles.Bounds.Width <= 0 || !lstProfiles.Columns.Any(c => c.IsVisible && c.ActualWidth > 0))
+            {
+                return;
+            }
+
             List<ColumnItem> lvColumnItem = [];
             foreach (var item2 in lstProfiles.Columns)
             {

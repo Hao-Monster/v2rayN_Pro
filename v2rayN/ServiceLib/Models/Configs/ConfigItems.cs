@@ -90,7 +90,8 @@ public class UIItem
     public bool EnableAutoAdjustMainLvColWidth { get; set; }
     public int MainGirdHeight1 { get; set; }
     public int MainGirdHeight2 { get; set; }
-    public EGirdOrientation MainGirdOrientation { get; set; } = EGirdOrientation.Vertical;
+    public EGirdOrientation MainGirdOrientation { get; set; } = EGirdOrientation.Tab;
+    public bool LeftRailLayoutMigrated { get; set; }
     public EMainWorkspacePage MainWorkspacePage { get; set; } = EMainWorkspacePage.Home;
     public string WorkspaceBackgroundImage { get; set; } = WorkspaceBackgroundHandler.DefaultImageFileName;
     public double WorkspaceBackgroundOpacity { get; set; } = 1.0;

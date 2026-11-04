@@ -9,7 +9,7 @@ public partial class MainWindowViewModel : MyReactiveObject
 
     public bool DesignMode { get; set; }
 
-    public ProfilesViewModel ProfilesViewModel { get; } = new();
+    public ProfilesViewModel ProfilesViewModel { get; }
     public MsgViewModel MsgViewModel { get; } = new();
     public ClashProxiesViewModel ClashProxiesViewModel { get; } = new();
     public ClashConnectionsViewModel ClashConnectionsViewModel { get; } = new();
@@ -21,7 +21,7 @@ public partial class MainWindowViewModel : MyReactiveObject
     private const int AutomaticRepairFailureThreshold = 3;
     private static readonly TimeSpan RepairedStatusDuration = TimeSpan.FromMinutes(10);
     private readonly SemaphoreSlim _subscriptionWorkflowSemaphore = new(1, 1);
-    private readonly SemaphoreSlim _networkRepairSemaphore = new(1, 1);
+    private readonly NetworkWorkflowGate _networkWorkflow = new(AppEvents.NetworkSetupRunningChanged.Publish);
     private readonly CancellationTokenSource _networkHealthCts = new();
     private int _consecutiveNetworkFailures;
     private DateTimeOffset? _lastNetworkRepairAt;
@@ -100,7 +100,10 @@ public partial class MainWindowViewModel : MyReactiveObject
 
     public MainWindowViewModel()
     {
+        ProfilesViewModel = new ProfilesViewModel(EnsureSelectedServerActive);
         _config = AppManager.Instance.Config;
+        _config.UiItem ??= new();
+        ConfigHandler.ApplyUiLayoutMigration(_config.UiItem);
         BlIsWindows = Utils.IsWindows();
         MainGirdOrientation = _config.UiItem.MainGirdOrientation;
 
@@ -376,7 +379,7 @@ public partial class MainWindowViewModel : MyReactiveObject
 
         _networkHealthMonitorEnabled = Utils.IsWindows()
             && !DesignMode
-            && await HasExistingSubscriptionConfiguration();
+            && (await NetworkRecoveryEligibility.ReadAsync()).CanMonitor;
         await Reload();
         StartNetworkHealthMonitor();
     }
@@ -610,16 +613,25 @@ public partial class MainWindowViewModel : MyReactiveObject
         }
     }
 
-    public async Task UpdateSubscriptionProcess(string subId, bool blProxy)
+    public Task UpdateSubscriptionProcess(string subId, bool blProxy) =>
+        _networkWorkflow.RunAsync(() => UpdateSubscription(subId, blProxy), wait: true);
+
+    private async Task UpdateSubscription(string subId, bool blProxy)
     {
-        if (!await HasExistingSubscriptionConfiguration())
+        if (!(await NetworkRecoveryEligibility.ReadAsync()).CanMonitor)
         {
             // Keep the established first-run onboarding chain unchanged.
             var initialSuccess = await Task.Run(
                 async () => await SubscriptionHandler.UpdateProcess(_config, subId, blProxy, UpdateTaskHandler));
             if (initialSuccess)
             {
-                AppEvents.SubscriptionAutoSpeedtestRequested.Publish();
+                var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                AppEvents.SubscriptionAutoSpeedtestRequested.Publish(completed);
+                using var onExit = _networkHealthCts.Token.Register(() => completed.TrySetResult(false));
+                if (!await completed.Task && !_networkHealthCts.IsCancellationRequested)
+                {
+                    PublishNetworkStatus(ENetworkAvailabilityState.SetupFailed, "订阅已下载，节点测速或代理设置未完成");
+                }
             }
             return;
         }
@@ -638,9 +650,9 @@ public partial class MainWindowViewModel : MyReactiveObject
         else
         {
             PublishNetworkStatus(
-                ENetworkAvailabilityState.Repairing,
-                "当前网络不可用，正在自动修复",
-                "订阅和测速已完成，等待下一次网络检查");
+                ENetworkAvailabilityState.SetupFailed,
+                "订阅已更新，代理联网验证失败",
+                "请检查节点，或重试一键网络设置");
         }
     }
 
@@ -648,7 +660,8 @@ public partial class MainWindowViewModel : MyReactiveObject
         string subId,
         bool blProxy,
         bool recoveryMode,
-        int currentDelay)
+        int currentDelay,
+        AutomaticRecoveryInputs? automaticInputs = null)
     {
         await _subscriptionWorkflowSemaphore.WaitAsync();
         try
@@ -663,6 +676,7 @@ public partial class MainWindowViewModel : MyReactiveObject
                 return false;
             }
 
+            var tickets = await SubscriptionWrites.Capture(subscriptionIds);
             var activeBeforeUpdate = _config.IndexId;
             var keepActiveServer = !recoveryMode
                 && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config)
@@ -670,14 +684,15 @@ public partial class MainWindowViewModel : MyReactiveObject
 
             foreach (var id in subscriptionIds)
             {
-                await SubscriptionSnapshotHandler.CaptureAsync(_config, id);
+                await tickets[id].IfCurrent(() => SubscriptionSnapshotHandler.CaptureAsync(_config, id));
             }
 
+            await CheckRecoveryInputs(automaticInputs);
             var success = await Task.Run(
-                async () => await SubscriptionHandler.UpdateProcess(_config, subId, blProxy, UpdateTaskHandler));
+                async () => await SubscriptionHandler.UpdateProcess(_config, subId, blProxy, UpdateTaskHandler, tickets));
             if (!success)
             {
-                var restored = await RestoreSubscriptionSnapshots(subscriptionIds);
+                var restored = await RestoreSubscriptionSnapshots(tickets);
                 if (restored)
                 {
                     await RefreshServersDispatcherAsync();
@@ -686,11 +701,16 @@ public partial class MainWindowViewModel : MyReactiveObject
                 return false;
             }
 
+            subscriptionIds = await SubscriptionWrites.CurrentIds(tickets);
+            if (subscriptionIds.Count == 0)
+            {
+                return false;
+            }
             var testResult = await ProfilesViewModel.TestAndSortSubscriptions(subscriptionIds);
             var restoredIds = new List<string>();
             foreach (var id in subscriptionIds.Where(id => !testResult.AvailableSubscriptionIds.Contains(id)))
             {
-                if (await SubscriptionSnapshotHandler.RestoreAsync(_config, id))
+                if (await tickets[id].Restore(() => SubscriptionSnapshotHandler.RestoreAsync(_config, id)))
                 {
                     restoredIds.Add(id);
                 }
@@ -703,7 +723,7 @@ public partial class MainWindowViewModel : MyReactiveObject
 
             foreach (var id in testResult.AvailableSubscriptionIds)
             {
-                await SubscriptionSnapshotHandler.CaptureAsync(_config, id);
+                await tickets[id].IfCurrent(() => SubscriptionSnapshotHandler.CaptureAsync(_config, id));
             }
 
             await RefreshSubscriptions();
@@ -717,11 +737,12 @@ public partial class MainWindowViewModel : MyReactiveObject
                         currentDelay,
                         testResult.BestProfile.Delay))
                 {
-                    proxyConfigured = await ActivateServer(testResult.BestProfile.IndexId);
+                    proxyConfigured = await ActivateVerifiedServer(testResult.BestProfile.IndexId);
                 }
                 else
                 {
-                    proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
+                    var run = _runningCore;
+                    proxyConfigured = await VerifyRunningProfile(run) && await ConfigureRunningProxy(run);
                 }
             }
             else if (!keepActiveServer || currentProfile is null)
@@ -751,61 +772,72 @@ public partial class MainWindowViewModel : MyReactiveObject
     {
         var subscriptions = await AppManager.Instance.SubItems() ?? [];
         return subscriptions
-            .Where(item => item.Enabled
-                && item.Id.IsNotEmpty()
-                && item.Url.IsNotEmpty()
-                && (subId.IsNullOrEmpty() || item.Id == subId))
+            .Where(item => item.Enabled && SubscriptionHandler.IsValidSubscription(item, subId))
             .Select(item => item.Id)
             .Distinct(StringComparer.Ordinal)
             .ToList();
     }
 
-    private async Task<bool> HasExistingSubscriptionConfiguration()
-    {
-        var subscriptionIds = await GetSubscriptionIds("");
-        if (subscriptionIds.Count == 0)
-        {
-            return false;
-        }
-
-        var profiles = await AppManager.Instance.ProfileItems(string.Empty);
-        return NetworkRecoveryEligibility.CanRun(
-            subscriptionIds.Count,
-            profiles?.Count ?? 0);
-    }
-
-    private async Task<bool> RestoreSubscriptionSnapshots(IEnumerable<string> subscriptionIds)
+    private async Task<bool> RestoreSubscriptionSnapshots(Dictionary<string, SubscriptionWrites.Ticket> tickets)
     {
         var restored = false;
-        foreach (var id in subscriptionIds)
+        foreach (var (id, ticket) in tickets)
         {
-            restored |= await SubscriptionSnapshotHandler.RestoreAsync(_config, id);
+            restored |= await ticket.Restore(() => SubscriptionSnapshotHandler.RestoreAsync(_config, id));
         }
         return restored;
     }
 
-    private async Task<bool> ActivateServer(string indexId)
+    private async Task<RunningCore?> StartServer(string indexId)
     {
         if (indexId.IsNullOrEmpty() || await AppManager.Instance.GetProfileItem(indexId) is null)
         {
-            return false;
+            return null;
         }
-
-        var changed = _config.IndexId != indexId;
-        if (changed)
+        if (_config.IndexId != indexId)
         {
             await ConfigHandler.SetDefaultServerIndex(_config, indexId);
             await RefreshServersDispatcherAsync();
         }
-        await Reload();
-        if (!CoreManager.Instance.IsRunning)
+        return await ReloadCore(indexId);
+    }
+
+    private Task<bool> EnsureSelectedServerActive(string id)
+    {
+        var run = _runningCore;
+        return run?.ProfileId == id && IsCurrent(run) ? ConfigureRunningProxy(run) : ActivateServer(id);
+    }
+
+    private async Task<bool> ActivateServer(string indexId)
+    {
+        return await ActivateServer(indexId, StartServer, ConfigureRunningProxy);
+    }
+
+    internal static async Task<bool> ActivateServer(string id, Func<string, Task<RunningCore?>> start, Func<RunningCore?, Task<bool>> configure)
+    {
+        var run = await start(id);
+        return run is not null && await configure(run);
+    }
+
+    private async Task<bool> ActivateVerifiedServer(string indexId)
+    {
+        var run = await StartServer(indexId);
+        return await VerifyRunningProfile(run) && await ConfigureRunningProxy(run);
+    }
+
+    private async Task<bool> ConfigureRunningProxy(RunningCore? run)
+    {
+        await _reloadSemaphore.WaitAsync();
+        try
         {
-            Logging.SaveLog($"Network recovery could not start the selected server. Server={indexId}.");
-            return false;
+            return IsCurrent(run)
+                && await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config))
+                && IsCurrent(run);
         }
-        var proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
-        Logging.SaveLog($"Network recovery activated server. Server={indexId}, Changed={changed}.");
-        return proxyConfigured;
+        finally
+        {
+            _reloadSemaphore.Release();
+        }
     }
 
     private void StartNetworkHealthMonitor()
@@ -819,7 +851,7 @@ public partial class MainWindowViewModel : MyReactiveObject
         PublishNetworkStatus(
             ENetworkAvailabilityState.Checking,
             "正在检查当前网络",
-            "首次检查将在服务启动后自动进行");
+            "首次检查将在服务启动后自动进行", AppEvents.ProfileRevision);
         _ = Task.Run(async () =>
         {
             try
@@ -844,53 +876,38 @@ public partial class MainWindowViewModel : MyReactiveObject
 
     private async Task CheckNetworkHealth()
     {
+        var revision = AppEvents.ProfileRevision;
         if (!_networkHealthMonitorEnabled
-            || !await HasExistingSubscriptionConfiguration()
-            || _networkRepairSemaphore.CurrentCount == 0
+            || !(await NetworkRecoveryEligibility.ReadAsync()).CanMonitor
+            || _networkWorkflow.IsBusy
             || _subscriptionWorkflowSemaphore.CurrentCount == 0)
         {
             return;
         }
 
-        if (!await ConnectionHandler.HasDirectInternetAccess())
+        var direct = await ConnectionHandler.HasDirectInternetAccess();
+        if (revision != AppEvents.ProfileRevision)
+        {
+            return;
+        }
+        if (!direct)
         {
             _consecutiveNetworkFailures = 0;
-            PublishNetworkStatus(
-                ENetworkAvailabilityState.LocalNetworkUnavailable,
-                "本机网络不可用，请检查 Wi-Fi 或网线");
+            PublishNetworkStatus(ENetworkAvailabilityState.LocalNetworkUnavailable,
+                "本机网络不可用，请检查 Wi-Fi 或网线", monitorRevision: revision);
             return;
         }
 
         var active = await AppManager.Instance.GetProfileItem(_config.IndexId);
-        if (active is null)
+        var reachable = active is not null && await ConnectionHandler.HasProxyInternetAccess();
+        if (revision != AppEvents.ProfileRevision || _networkWorkflow.IsBusy)
         {
-            var subscriptionIds = await GetSubscriptionIds("");
-            if (subscriptionIds.Count > 0)
-            {
-                _consecutiveNetworkFailures++;
-                PublishNetworkStatus(
-                    ENetworkAvailabilityState.Repairing,
-                    "当前网络不可用，正在自动修复",
-                    $"尚未选择可用节点，连续检测 {_consecutiveNetworkFailures}/{AutomaticRepairFailureThreshold}");
-                if (_consecutiveNetworkFailures >= AutomaticRepairFailureThreshold)
-                {
-                    await RunNetworkSetup(true);
-                }
-                return;
-            }
-
-            _consecutiveNetworkFailures = 0;
-            PublishNetworkStatus(
-                ENetworkAvailabilityState.NoAvailableNode,
-                "无可用节点，请联系客服",
-                "尚未添加可用订阅");
             return;
         }
-
-        if (await ConnectionHandler.HasProxyInternetAccess())
+        if (reachable)
         {
             _consecutiveNetworkFailures = 0;
-            PublishHealthyNetworkStatus();
+            PublishHealthyNetworkStatus(revision);
             return;
         }
 
@@ -898,28 +915,59 @@ public partial class MainWindowViewModel : MyReactiveObject
         Logging.SaveLog($"Proxy network health check failed. ConsecutiveFailures={_consecutiveNetworkFailures}.");
         if (_consecutiveNetworkFailures >= AutomaticRepairFailureThreshold)
         {
-            await RunNetworkSetup(true);
+            await RunNetworkSetup(true, revision);
+        }
+        else
+        {
+            PublishNetworkStatus(ENetworkAvailabilityState.SetupFailed, "代理暂未连通，等待复查",
+                $"连续检测异常 {_consecutiveNetworkFailures}/{AutomaticRepairFailureThreshold}", revision);
         }
     }
 
-    private async Task RunNetworkSetup(bool automatic)
-    {
-        var acquired = automatic
-            ? await _networkRepairSemaphore.WaitAsync(0)
-            : await WaitForNetworkRepairSemaphore();
-        if (!acquired)
-        {
-            return;
-        }
+    private Task RunNetworkSetup(bool automatic, long? monitorRevision = null) =>
+        _networkWorkflow.RunAsync(() => SetUpNetwork(automatic, monitorRevision), wait: false);
 
+    private sealed class RecoveryInputsChangedException : Exception { }
+
+    private static async Task CheckRecoveryInputs(AutomaticRecoveryInputs? inputs)
+    {
+        if (inputs is not null && !inputs.Matches(await AutomaticRecoveryInputs.ReadAsync()))
+        {
+            throw new RecoveryInputsChangedException();
+        }
+    }
+
+    private async Task SetUpNetwork(bool automatic, long? monitorRevision)
+    {
         try
         {
+            var configuration = await NetworkRecoveryEligibility.ReadAsync();
+            if (automatic && (!configuration.CanMonitor ||
+                (monitorRevision.HasValue && monitorRevision != AppEvents.ProfileRevision)))
+            {
+                return;
+            }
+            if (!configuration.CanSetUp)
+            {
+                _consecutiveNetworkFailures = 0;
+                PublishNetworkStatus(ENetworkAvailabilityState.Idle, configuration.IdleMessage);
+                return;
+            }
+
+            var inputs = automatic ? await AutomaticRecoveryInputs.ReadAsync() : null;
+            if (monitorRevision.HasValue && monitorRevision != AppEvents.ProfileRevision)
+            {
+                return;
+            }
+
             PublishNetworkStatus(
                 ENetworkAvailabilityState.Repairing,
                 "当前网络不可用，正在自动修复",
                 automatic ? "连续检测异常，正在选择可用节点" : "正在执行一键网络设置");
 
-            if (!await ConnectionHandler.HasDirectInternetAccess())
+            var direct = await ConnectionHandler.HasDirectInternetAccess();
+            await CheckRecoveryInputs(inputs);
+            if (!direct)
             {
                 _consecutiveNetworkFailures = 0;
                 PublishNetworkStatus(
@@ -929,11 +977,18 @@ public partial class MainWindowViewModel : MyReactiveObject
             }
 
             var active = await AppManager.Instance.GetProfileItem(_config.IndexId);
+            if (!configuration.HasSubscription)
+            {
+                await SetUpLocalNodes(active);
+                return;
+            }
+
             var currentDelay = active is null ? -1 : await ConnectionHandler.GetRealPingTimeInfo();
+            await CheckRecoveryInputs(inputs);
             if (currentDelay is > 0 and <= SlowNetworkDelay)
             {
-                var proxyConfigured = await StatusBarViewModel.SetListenerType(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
-                if (proxyConfigured && await ConnectionHandler.HasProxyInternetAccess())
+                var run = _runningCore;
+                if (run?.ProfileId == active?.IndexId && await VerifyRunningProfile(run) && await ConfigureRunningProxy(run))
                 {
                     _consecutiveNetworkFailures = 0;
                     PublishHealthyNetworkStatus();
@@ -945,21 +1000,19 @@ public partial class MainWindowViewModel : MyReactiveObject
             if (automatic)
             {
                 var existingIds = await GetSubscriptionIds("");
+                await CheckRecoveryInputs(inputs);
                 var existingResult = await ProfilesViewModel.TestAndSortSubscriptions(existingIds);
+                await CheckRecoveryInputs(inputs);
                 if (existingResult.BestProfile is not null)
                 {
-                    var proxyConfigured = await ActivateServer(existingResult.BestProfile.IndexId);
-                    repaired = proxyConfigured && await ConnectionHandler.HasProxyInternetAccess();
+                    repaired = await ActivateVerifiedServer(existingResult.BestProfile.IndexId);
                 }
             }
 
             if (!repaired)
             {
-                repaired = await UpdateSubscriptionProcessCore("", false, true, currentDelay);
-                if (repaired)
-                {
-                    repaired = await ConnectionHandler.HasProxyInternetAccess();
-                }
+                await CheckRecoveryInputs(inputs);
+                repaired = await UpdateSubscriptionProcessCore("", false, true, currentDelay, inputs);
             }
 
             if (repaired)
@@ -973,30 +1026,116 @@ public partial class MainWindowViewModel : MyReactiveObject
                 PublishNetworkStatus(
                     ENetworkAvailabilityState.NoAvailableNode,
                     "无可用节点，请联系客服",
-                    "订阅已更新，但没有节点能够访问目标网络");
+                    "未能通过订阅恢复代理连接，请检查订阅和节点");
             }
+        }
+        catch (RecoveryInputsChangedException)
+        {
+            _consecutiveNetworkFailures = 0;
+            var current = await NetworkRecoveryEligibility.ReadAsync();
+            PublishNetworkStatus(ENetworkAvailabilityState.Idle, current.IdleMessage);
+        }
+        catch (OperationCanceledException) when (_networkHealthCts.IsCancellationRequested)
+        {
+            // The application is exiting.
         }
         catch (Exception ex)
         {
             Logging.SaveLog("Network setup failed", ex);
             PublishNetworkStatus(
-                ENetworkAvailabilityState.NoAvailableNode,
-                "无可用节点，请联系客服",
+                ENetworkAvailabilityState.SetupFailed,
+                "网络设置未完成",
                 "自动修复未能完成，请查看日志");
         }
-        finally
-        {
-            _networkRepairSemaphore.Release();
-        }
     }
 
-    private async Task<bool> WaitForNetworkRepairSemaphore()
+    private async Task SetUpLocalNodes(ProfileItem? active)
     {
-        await _networkRepairSemaphore.WaitAsync();
-        return true;
+        var run = _runningCore;
+        if (active is not null && run?.ProfileId == active.IndexId && await VerifyRunningProfile(run))
+        {
+            if (await EnableLocalNodeProxy(run))
+            {
+                _consecutiveNetworkFailures = 0;
+                PublishHealthyNetworkStatus();
+            }
+            return;
+        }
+
+        var candidates = await ProfilesViewModel.TestLocalAlternatives(active?.IndexId);
+        bool repaired;
+        try
+        {
+            repaired = await TryLocalNodes(candidates, active?.IndexId,
+                async id =>
+                {
+                    run = await StartServer(id);
+                    return await VerifyRunningProfile(run);
+                }, _networkHealthCts.Token);
+        }
+        catch (OperationCanceledException) when (_networkHealthCts.IsCancellationRequested)
+        {
+            if (active is not null && _config.IndexId != active.IndexId)
+            {
+                await ConfigHandler.SetDefaultServerIndex(_config, active.IndexId);
+            }
+            throw;
+        }
+        if (!repaired)
+        {
+            PublishNetworkStatus(
+                ENetworkAvailabilityState.LocalNodesUnavailable,
+                "本地节点未能连通",
+                "请检查节点配置，或手动选择其他节点后重试");
+            return;
+        }
+        if (!await EnableLocalNodeProxy(run))
+        {
+            return;
+        }
+        _consecutiveNetworkFailures = 0;
+        _lastNetworkRepairAt = DateTimeOffset.Now;
+        PublishHealthyNetworkStatus();
     }
 
-    private void PublishHealthyNetworkStatus()
+    private async Task<bool> EnableLocalNodeProxy(RunningCore? run)
+    {
+        if (await ConfigureRunningProxy(run))
+        {
+            return true;
+        }
+        PublishNetworkStatus(ENetworkAvailabilityState.SetupFailed, "节点已连通，但代理设置未完成");
+        return false;
+    }
+
+    internal static async Task<bool> TryLocalNodes(
+        IEnumerable<string> alternatives, string? originalId,
+        Func<string, Task<bool>> startAndVerify, CancellationToken cancellationToken = default)
+    {
+        // Retry the original core last, leaving the original node selected if all alternatives fail.
+        var candidates = originalId is null ? alternatives : alternatives.Append(originalId);
+        foreach (var id in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var connected = await startAndVerify(id);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (connected)
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Logging.SaveLog($"Local node recovery failed for server {id}.", ex);
+            }
+        }
+        return false;
+    }
+
+    private void PublishHealthyNetworkStatus(long? monitorRevision = null)
     {
         if (_lastNetworkRepairAt is { } repairedAt
             && DateTimeOffset.Now - repairedAt <= RepairedStatusDuration)
@@ -1004,19 +1143,19 @@ public partial class MainWindowViewModel : MyReactiveObject
             PublishNetworkStatus(
                 ENetworkAvailabilityState.Repaired,
                 "当前网络已自动修复",
-                $"修复于 {repairedAt:HH:mm}");
+                $"修复于 {repairedAt:HH:mm}", monitorRevision);
             return;
         }
 
-        PublishNetworkStatus(ENetworkAvailabilityState.Available, "当前网络可用");
+        PublishNetworkStatus(ENetworkAvailabilityState.Available, "当前网络可用", monitorRevision: monitorRevision);
     }
 
     private static void PublishNetworkStatus(
         ENetworkAvailabilityState state,
         string message,
-        string detail = "")
+        string detail = "", long? monitorRevision = null)
     {
-        AppEvents.NetworkAvailabilityChanged.Publish(new NetworkAvailabilityInfo(state, message, detail));
+        AppEvents.NetworkAvailabilityChanged.Publish(new NetworkAvailabilityInfo(state, message, detail, monitorRevision));
     }
 
     #endregion Subscription
@@ -1106,21 +1245,45 @@ public partial class MainWindowViewModel : MyReactiveObject
     private bool _hasNextReloadJob = false;
     private readonly SemaphoreSlim _reloadSemaphore = new(1, 1);
 
-    public async Task Reload()
+    // Each successful launch gets a distinct identity, even when it uses the same profile.
+    internal sealed class RunningCore(string profileId)
     {
-        //If there are unfinished reload job, marked with next job.
-        if (!await _reloadSemaphore.WaitAsync(0))
+        public string ProfileId { get; } = profileId;
+    }
+
+    private volatile RunningCore? _runningCore;
+
+    private bool IsCurrent(RunningCore? run) => run is not null && ReferenceEquals(run, _runningCore)
+        && run.ProfileId == _config.IndexId && CoreManager.Instance.IsRunning;
+
+    private Task<bool> VerifyRunningProfile(RunningCore? run) =>
+        VerifyRunningProfile(run, IsCurrent, ConnectionHandler.HasProxyInternetAccess);
+
+    internal static async Task<bool> VerifyRunningProfile(RunningCore? run, Func<RunningCore?, bool> isRunning, Func<Task<bool>> probe) =>
+        run is not null && isRunning(run) && await probe() && isRunning(run);
+
+    public async Task Reload() => await ReloadCore();
+
+    private async Task<RunningCore?> ReloadCore(string? requiredId = null)
+    {
+        // Recovery must await its own reload. Ordinary UI reloads can coalesce.
+        if (requiredId is not null)
+        {
+            await _reloadSemaphore.WaitAsync();
+        }
+        else if (!await _reloadSemaphore.WaitAsync(0))
         {
             _hasNextReloadJob = true;
-            return;
+            return null;
         }
 
         if (DesignMode)
         {
             _reloadSemaphore.Release();
-            return;
+            return null;
         }
 
+        bool launchAttempted = false;
         try
         {
             SetReloadEnabled(false);
@@ -1133,27 +1296,45 @@ public partial class MainWindowViewModel : MyReactiveObject
                 }
             });
             var profileItem = await ConfigHandler.GetDefaultServer(_config);
-            if (profileItem == null)
+            if (profileItem == null || (requiredId is not null && profileItem.IndexId != requiredId))
             {
                 NoticeManager.Instance.Enqueue(ResUI.CheckServerSettings);
-                return;
+                return null;
             }
             var allResult = await CoreConfigContextBuilder.BuildAll(_config, profileItem);
             if (NoticeManager.Instance.NotifyValidatorResult(allResult.CombinedValidatorResult) && !allResult.Success)
             {
-                return;
+                return null;
             }
 
             await Task.Run(async () =>
             {
-                await LoadCore(allResult.MainResult.Context, allResult.PreSocksResult?.Context);
-                if (_networkHealthMonitorEnabled && !CoreManager.Instance.IsRunning)
+                launchAttempted = true;
+                _runningCore = null;
+                var loaded = await CoreManager.Instance.LoadCore(allResult.MainResult.Context, allResult.PreSocksResult?.Context);
+                if (!loaded)
                 {
-                    throw new InvalidOperationException(ResUI.FailedToRunCore);
+                    return;
                 }
-                await SysProxyHandler.UpdateSysProxy(_config, false);
+                _runningCore = new RunningCore(profileItem.IndexId);
+                if (requiredId is null)
+                {
+                    await SysProxyHandler.UpdateSysProxy(_config, false);
+                }
                 await Task.Delay(1000);
             });
+            if (_runningCore is null)
+            {
+                if (requiredId is null && _networkHealthMonitorEnabled)
+                {
+                    _ = Task.Run(async () => await RunNetworkSetup(true));
+                }
+                return null;
+            }
+            if (requiredId is not null && !IsCurrent(_runningCore))
+            {
+                return null;
+            }
             RxSchedulers.MainThreadScheduler.Schedule(async () =>
             {
                 var result = await StatusBarViewModel.TestServerAvailability();
@@ -1186,21 +1367,35 @@ public partial class MainWindowViewModel : MyReactiveObject
             }
 
             ReloadResult(showClashUI);
+            return _runningCore;
         }
         catch (Exception ex) when (_networkHealthMonitorEnabled)
         {
-            Logging.SaveLog("Core reload failed; clearing the operating-system proxy before recovery.", ex);
-            await SysProxyHandler.UpdateSysProxy(_config, true);
+            Logging.SaveLog("Core reload failed; checking the local listener before recovery.", ex);
             PublishNetworkStatus(
-                ENetworkAvailabilityState.Repairing,
-                "当前网络不可用，正在自动修复",
-                "代理核心启动失败，已撤销系统代理并尝试其他节点");
-            _ = Task.Run(async () => await RunNetworkSetup(true));
+                ENetworkAvailabilityState.SetupFailed,
+                "代理核心启动失败",
+                "请检查核心日志");
+            if (requiredId is null)
+            {
+                _ = Task.Run(async () => await RunNetworkSetup(true));
+            }
+            return null;
         }
         finally
         {
-            SetReloadEnabled(true);
-            _reloadSemaphore.Release();
+            try
+            {
+                if (launchAttempted && _runningCore is null)
+                {
+                    await ClearUnavailableProxy();
+                }
+            }
+            finally
+            {
+                SetReloadEnabled(true);
+                _reloadSemaphore.Release();
+            }
             //If there is a next reload job, execute it.
             if (_hasNextReloadJob)
             {
@@ -1209,6 +1404,23 @@ public partial class MainWindowViewModel : MyReactiveObject
             }
         }
     }
+
+    private async Task ClearUnavailableProxy()
+    {
+        if (_config.SystemProxyItem.SysProxyType is not (ESysProxyType.ForcedChange or ESysProxyType.Pac))
+        {
+            return;
+        }
+        var port = AppManager.Instance.GetLocalPort(EInboundProtocol.socks);
+        if (!await ClearProxyIfSocksUnavailable(port, CoreManager.Instance.IsRunning, () => SysProxyHandler.UpdateSysProxy(_config, true)))
+        {
+            Logging.SaveLog("Unable to clear the system proxy after the core listener stopped.");
+            NoticeManager.Instance.Enqueue("本地 SOCKS 代理不可用，清除系统代理失败，请检查系统代理设置");
+        }
+    }
+
+    internal static async Task<bool> ClearProxyIfSocksUnavailable(int port, bool coreRunning, Func<Task<bool>> clear) =>
+        (coreRunning && await ConnectionHandler.HasLocalSocksProxy(port)) || await clear();
 
     private void ReloadResult(bool showClashUI)
     {
@@ -1225,11 +1437,6 @@ public partial class MainWindowViewModel : MyReactiveObject
     private void SetReloadEnabled(bool enabled)
     {
         RxSchedulers.MainThreadScheduler.Schedule(() => BlReloadEnabled = enabled);
-    }
-
-    private async Task LoadCore(CoreConfigContext? mainContext, CoreConfigContext? preContext)
-    {
-        await CoreManager.Instance.LoadCore(mainContext, preContext);
     }
 
     #endregion core job

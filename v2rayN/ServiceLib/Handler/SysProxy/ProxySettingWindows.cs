@@ -9,28 +9,35 @@ public static class ProxySettingWindows
 
     private static bool SetProxyFallback(string? strProxy, string? exceptions, int type)
     {
-        if (type == 1)
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(_regPath);
+        WriteRegistrySettings(key, strProxy, exceptions, type);
+        return NotifySettingsChanged();
+    }
+
+    internal static void WriteRegistrySettings(Microsoft.Win32.RegistryKey key, string? strProxy, string? exceptions, int type)
+    {
+        void SetString(string name, string? value)
         {
-            WindowsUtils.RegWriteValue(_regPath, "ProxyEnable", 0);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyServer", string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyOverride", string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "AutoConfigURL", string.Empty);
+            if (string.IsNullOrEmpty(value))
+            {
+                key.DeleteValue(name, false);
+            }
+            else
+            {
+                key.SetValue(name, value);
+            }
         }
-        if (type == 2)
-        {
-            WindowsUtils.RegWriteValue(_regPath, "ProxyEnable", 1);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyServer", strProxy ?? string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyOverride", exceptions ?? string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "AutoConfigURL", string.Empty);
-        }
-        else if (type == 4)
-        {
-            WindowsUtils.RegWriteValue(_regPath, "ProxyEnable", 0);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyServer", string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "ProxyOverride", string.Empty);
-            WindowsUtils.RegWriteValue(_regPath, "AutoConfigURL", strProxy ?? string.Empty);
-        }
-        return true;
+        SetString("ProxyServer", type == 2 ? strProxy : null);
+        SetString("ProxyOverride", type == 2 ? exceptions : null);
+        SetString("AutoConfigURL", type == 4 ? strProxy : null);
+        key.SetValue("ProxyEnable", type == 2 ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+    }
+
+    private static bool NotifySettingsChanged()
+    {
+        var notified = NativeMethods.InternetSetOption(nint.Zero, InternetOption.INTERNET_OPTION_SETTINGS_CHANGED, nint.Zero, 0);
+        var refreshed = NativeMethods.InternetSetOption(nint.Zero, InternetOption.INTERNET_OPTION_REFRESH, nint.Zero, 0);
+        return notified && refreshed;
     }
 
     /// <summary>
@@ -54,24 +61,73 @@ public static class ProxySettingWindows
     ///     PROXY_TYPE_AUTO_DETECT      = 0x00000008  // use autoproxy detection
     /// </param>
     /// <exception cref="ApplicationException">Error message with win32 error code</exception>
-    /// <returns>true: one of connection is successfully updated proxy settings</returns>
-    public static bool SetProxy(string? strProxy, string? exceptions, int type)
+    /// <returns>True when the LAN and enumerated RAS settings were applied.</returns>
+    public static bool SetProxy(string? strProxy, string? exceptions, int type) =>
+        ApplyProxy(strProxy, exceptions, type) == ProxyApplyResult.Complete;
+
+    internal static ProxyApplyResult ApplyProxy(string? strProxy, string? exceptions, int type) =>
+        ApplyConnections(
+            () => ApplyWithFallback(() => SetConnectionProxy(null, strProxy, exceptions, type),
+                () => SetProxyFallback(strProxy, exceptions, type)),
+            EnumerateRasEntries,
+            connection => SetConnectionProxy(connection, strProxy, exceptions, type));
+
+    internal static ProxyApplyResult ApplyConnections(Func<bool> applyLan, Func<IEnumerable<string>> enumerateRas,
+        Func<string, bool> applyRas)
+    {
+        if (!applyLan())
+        {
+            return ProxyApplyResult.Failed;
+        }
+
+        var result = ProxyApplyResult.Complete;
+        try
+        {
+            foreach (var connection in enumerateRas())
+            {
+                try
+                {
+                    if (!applyRas(connection))
+                    {
+                        result = ProxyApplyResult.LanAppliedRasIncomplete;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logging.SaveLog("RAS proxy update failed", ex);
+                    result = ProxyApplyResult.LanAppliedRasIncomplete;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("RAS enumeration failed", ex);
+            return ProxyApplyResult.LanAppliedRasIncomplete;
+        }
+        return result;
+    }
+
+    internal static bool ApplyWithFallback(Func<bool> apply, Func<bool> fallback)
     {
         try
         {
-            // set proxy for LAN
-            var result = SetConnectionProxy(null, strProxy, exceptions, type);
-            // set proxy for dial up connections
-            var connections = EnumerateRasEntries();
-            foreach (var connection in connections)
+            if (apply())
             {
-                result |= SetConnectionProxy(connection, strProxy, exceptions, type);
+                return true;
             }
-            return result;
         }
-        catch
+        catch (Exception ex)
         {
-            _ = SetProxyFallback(strProxy, exceptions, type);
+            Logging.SaveLog("WinINet proxy update failed", ex);
+        }
+
+        try
+        {
+            return fallback();
+        }
+        catch (Exception ex)
+        {
+            Logging.SaveLog("Registry proxy fallback failed", ex);
             return false;
         }
     }
@@ -161,6 +217,7 @@ public static class ProxySettingWindows
         var isSuccess = NativeMethods.InternetSetOption(nint.Zero,
            InternetOption.INTERNET_OPTION_PER_CONNECTION_OPTION,
            ipcoListPtr, list.dwSize);
+        var refreshed = false;
         var returnvalue = 0; // ERROR_SUCCESS
         if (!isSuccess)
         {  // get the error codes, they might be helpful
@@ -169,8 +226,7 @@ public static class ProxySettingWindows
         else
         {
             // Notify the system that the registry settings have been changed and cause them to be refreshed
-            _ = NativeMethods.InternetSetOption(nint.Zero, InternetOption.INTERNET_OPTION_SETTINGS_CHANGED, nint.Zero, 0);
-            _ = NativeMethods.InternetSetOption(nint.Zero, InternetOption.INTERNET_OPTION_REFRESH, nint.Zero, 0);
+            refreshed = NotifySettingsChanged();
         }
 
         // FREE the data ASAP
@@ -188,13 +244,13 @@ public static class ProxySettingWindows
         }
         Marshal.FreeCoTaskMem(optionsPtr); // release mem 4
         Marshal.FreeCoTaskMem(ipcoListPtr); // release mem 5
-        if (returnvalue != 0)
+        if (!isSuccess)
         {
             // throw the error codes, they might be helpful
-            throw new ApplicationException($"Set Internet Proxy failed with error code: {Marshal.GetLastWin32Error()}");
+            throw new ApplicationException($"Set Internet Proxy failed with error code: {returnvalue}");
         }
 
-        return true;
+        return refreshed;
     }
 
     /// <summary>
