@@ -6,11 +6,16 @@ public class TaskManager
     public static TaskManager Instance => _instance.Value;
     private Config _config;
     private Func<bool, string, Task>? _updateFunc;
+    private Func<string, bool, Task>? _subscriptionUpdateFunc;
 
-    public void RegUpdateTask(Config config, Func<bool, string, Task> updateFunc)
+    public void RegUpdateTask(
+        Config config,
+        Func<bool, string, Task> updateFunc,
+        Func<string, bool, Task>? subscriptionUpdateFunc = null)
     {
         _config = config;
         _updateFunc = updateFunc;
+        _subscriptionUpdateFunc = subscriptionUpdateFunc;
 
         Task.Run(ScheduledTasks);
     }
@@ -19,12 +24,10 @@ public class TaskManager
     {
         Logging.SaveLog("Setup Scheduled Tasks");
 
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         var numOfExecuted = 1;
-        while (true)
+        while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
         {
-            //1 minute
-            await Task.Delay(1000 * 60);
-
             //Execute once 1 minute
             try
             {
@@ -57,8 +60,8 @@ public class TaskManager
                 //Logging.SaveLog("Execute delete expired files");
 
                 FileUtils.DeleteExpiredFiles(Utils.GetBinConfigPath(), DateTime.Now.AddHours(-1), "Test");
-                FileUtils.DeleteExpiredFiles(Utils.GetLogPath(), DateTime.Now.AddMonths(-1));
-                FileUtils.DeleteExpiredFiles(Utils.GetTempPath(), DateTime.Now.AddMonths(-1));
+                FileUtils.DeleteExpiredFiles(Utils.GetLogPath(), DateTime.Now.AddDays(-7));
+                FileUtils.DeleteExpiredFiles(Utils.GetTempPath(), DateTime.Now.AddDays(-7));
 
                 try
                 {
@@ -103,6 +106,14 @@ public class TaskManager
 
         foreach (var item in lstSubs)
         {
+            if (_subscriptionUpdateFunc is not null)
+            {
+                await _subscriptionUpdateFunc(item.Id, true);
+                await Task.Delay(1000);
+                continue;
+            }
+
+            var tickets = await SubscriptionWrites.Capture([item.Id]);
             var success = await SubscriptionHandler.UpdateProcess(_config, item.Id, true, async (success, msg) =>
             {
                 await _updateFunc?.Invoke(success, msg);
@@ -110,13 +121,24 @@ public class TaskManager
                 {
                     Logging.SaveLog($"Update subscription end. {msg}");
                 }
-            });
+            }, tickets);
             if (success)
             {
-                AppEvents.SubscriptionAutoSpeedtestRequested.Publish();
+                AppEvents.SubscriptionAutoSpeedtestRequested.Publish(null);
             }
-            item.UpdateTime = updateTime;
-            await ConfigHandler.AddSubItem(_config, item);
+            else
+            {
+                await tickets[item.Id].Apply(async () =>
+                {
+                    var current = await AppManager.Instance.GetSubItem(item.Id);
+                    if (current is null)
+                    {
+                        return false;
+                    }
+                    current.UpdateTime = updateTime;
+                    return await ConfigHandler.AddSubItem(_config, current) == 0;
+                });
+            }
             await Task.Delay(1000);
         }
     }
@@ -140,7 +162,7 @@ public class TaskManager
 
         var updateService = new UpdateService(_config, async (success, msg) => await Task.CompletedTask);
 
-        var msgs = await updateService.CheckHasUpdateOnlyAll(_config.CheckUpdateItem.CheckPreReleaseUpdate);
+        var msgs = await updateService.CheckHasUpdateOnlyAll(_config.CheckUpdateItem.UpdateViaProxy);
         foreach (var msg in msgs)
         {
             await _updateFunc?.Invoke(false, msg);

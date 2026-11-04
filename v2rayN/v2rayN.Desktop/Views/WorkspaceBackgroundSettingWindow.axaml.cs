@@ -30,7 +30,7 @@ public partial class WorkspaceBackgroundSettingWindow : Window
 
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
-        var fileName = await UI.OpenFileDialog(this, null);
+        var fileName = await UI.OpenFileDialog(null);
         if (fileName.IsNotEmpty())
         {
             txtBackgroundPath.Text = fileName;

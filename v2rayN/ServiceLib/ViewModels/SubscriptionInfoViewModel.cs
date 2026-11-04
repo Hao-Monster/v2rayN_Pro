@@ -1,38 +1,74 @@
 namespace ServiceLib.ViewModels;
 
-public class SubscriptionInfoViewModel : MyReactiveObject
+public partial class SubscriptionInfoViewModel : MyReactiveObject
 {
-    [Reactive]
-    public string SubscriptionName { get; set; } = "订阅信息";
+    private NetworkRecoveryEligibility? _configuration;
+    private int _configurationRefreshVersion;
+    private bool _receivedNetworkStatus;
 
     [Reactive]
-    public string Announcement { get; set; } = "选择一个订阅分组以查看订阅信息";
+    public partial bool IsNetworkSetupRunning { get; private set; }
 
     [Reactive]
-    public string RemainingTraffic { get; set; } = "-";
+    public partial bool HasNetworkConfiguration { get; private set; }
 
     [Reactive]
-    public string TotalTraffic { get; set; } = "-";
+    public partial string SubscriptionName { get; set; } = "订阅信息";
 
     [Reactive]
-    public string UsedTraffic { get; set; } = "-";
+    public partial string Announcement { get; set; } = "选择一个订阅分组以查看订阅信息";
 
     [Reactive]
-    public string ExpireDate { get; set; } = "-";
+    public partial string RemainingTraffic { get; set; } = "-";
 
     [Reactive]
-    public string LastUpdated { get; set; } = "尚未更新";
+    public partial string TotalTraffic { get; set; } = "-";
 
     [Reactive]
-    public bool HasSubscription { get; set; }
+    public partial string UsedTraffic { get; set; } = "-";
 
     [Reactive]
-    public string SupportUrl { get; set; } = string.Empty;
+    public partial string ExpireDate { get; set; } = "-";
 
     [Reactive]
-    public bool HasSupportUrl { get; set; }
+    public partial string LastUpdated { get; set; } = "尚未更新";
 
-    public ReactiveCommand<Unit, Unit> OpenSupportCmd { get; }
+    [Reactive]
+    public partial bool HasSubscription { get; set; }
+
+    [Reactive]
+    public partial string SupportUrl { get; set; } = string.Empty;
+
+    [Reactive]
+    public partial bool HasSupportUrl { get; set; }
+
+    [Reactive]
+    public partial string NetworkStatusText { get; set; } = "正在读取本地配置";
+
+    [Reactive]
+    public partial string NetworkStatusDetail { get; set; } = string.Empty;
+
+    [Reactive]
+    public partial string NetworkStatusColor { get; set; } = "#616161";
+
+    [Reactive]
+    public partial bool IsNetworkRepairing { get; set; }
+
+    [Reactive]
+    public partial bool CanContactSupport { get; set; }
+
+    [Reactive]
+    public partial string ActiveNodeName { get; set; } = "未选择节点";
+
+    [Reactive]
+    public partial string CurrentDelay { get; set; } = "未测速";
+
+    [Reactive]
+    public partial string SystemProxyStatus { get; set; } = "未开启";
+
+    public ReactiveCommand<RxVoid, RxVoid> OpenSupportCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> OneClickNetworkSetupCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ContactSupportCmd { get; }
 
     public SubscriptionInfoViewModel()
     {
@@ -40,6 +76,21 @@ public class SubscriptionInfoViewModel : MyReactiveObject
         OpenSupportCmd = ReactiveCommand.Create(
             () => ProcUtils.ProcessStart(SupportUrl),
             this.WhenAnyValue(x => x.HasSupportUrl));
+        OneClickNetworkSetupCmd = ReactiveCommand.Create(
+            () => AppEvents.OneClickNetworkSetupRequested.Publish(),
+            this.WhenAnyValue(x => x.HasNetworkConfiguration, x => x.IsNetworkRepairing, x => x.IsNetworkSetupRunning,
+                (configured, repairing, running) => configured && !repairing && !running));
+        ContactSupportCmd = ReactiveCommand.Create(() =>
+        {
+            if (HasSupportUrl)
+            {
+                ProcUtils.ProcessStart(SupportUrl);
+            }
+            else
+            {
+                AppEvents.EditCurrentSubscriptionRequested.Publish();
+            }
+        });
 
         AppEvents.SubscriptionSelectionChanged
             .AsObservable()
@@ -50,12 +101,67 @@ public class SubscriptionInfoViewModel : MyReactiveObject
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(async _ => await Refresh(_config.SubIndexId));
+        AppEvents.ProfilesRefreshed
+            .AsObservable()
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async _ =>
+            {
+                await RefreshNetworkConfiguration();
+                await RefreshRuntimeStatus();
+            });
+        AppEvents.NetworkSetupRunningChanged
+            .AsObservable()
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(running => IsNetworkSetupRunning = running);
+        AppEvents.NetworkAvailabilityChanged
+            .AsObservable()
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async info =>
+            {
+                if (NetworkRecoveryEligibility.AcceptsStatus(_configuration, info, AppEvents.ProfileRevision))
+                {
+                    _receivedNetworkStatus = true;
+                    ApplyNetworkStatus(info);
+                }
+                await RefreshRuntimeStatus();
+            });
+
+        StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.SystemProxySelected)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async _ => await RefreshRuntimeStatus());
+        StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.EnableTun)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async _ => await RefreshRuntimeStatus());
+        StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.SelectedServer)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async _ => await RefreshRuntimeStatus());
 
         _ = Refresh(_config.SubIndexId);
     }
 
+    private void ApplyNetworkStatus(NetworkAvailabilityInfo info)
+    {
+        NetworkStatusText = info.Message;
+        NetworkStatusDetail = info.Detail;
+        IsNetworkRepairing = info.State is ENetworkAvailabilityState.Checking or ENetworkAvailabilityState.Repairing;
+        CanContactSupport = info.State == ENetworkAvailabilityState.NoAvailableNode;
+        NetworkStatusColor = info.State switch
+        {
+            ENetworkAvailabilityState.Available => "#2E7D32",
+            ENetworkAvailabilityState.Repairing or ENetworkAvailabilityState.Checking => "#F9A825",
+            ENetworkAvailabilityState.Repaired => "#1976D2",
+            ENetworkAvailabilityState.NoAvailableNode or ENetworkAvailabilityState.LocalNodesUnavailable or ENetworkAvailabilityState.SetupFailed => "#C62828",
+            ENetworkAvailabilityState.LocalNetworkUnavailable => "#616161",
+            _ => "#616161"
+        };
+    }
+
     private async Task Refresh(string? subId)
     {
+        await RefreshNetworkConfiguration();
         var item = subId.IsNotEmpty()
             ? await AppManager.Instance.GetSubItem(subId)
             : null;
@@ -72,6 +178,7 @@ public class SubscriptionInfoViewModel : MyReactiveObject
             LastUpdated = "尚未更新";
             SupportUrl = string.Empty;
             HasSupportUrl = false;
+            await RefreshRuntimeStatus();
             return;
         }
 
@@ -109,6 +216,49 @@ public class SubscriptionInfoViewModel : MyReactiveObject
 
         SupportUrl = NormalizeSupportUrl(item.SupportUrl);
         HasSupportUrl = SupportUrl.IsNotEmpty();
+        await RefreshRuntimeStatus();
+    }
+
+    private async Task RefreshNetworkConfiguration()
+    {
+        var version = ++_configurationRefreshVersion;
+        var configuration = await NetworkRecoveryEligibility.ReadAsync();
+        if (version != _configurationRefreshVersion || _configuration == configuration)
+        {
+            return;
+        }
+
+        var keepRuntimeStatus = _receivedNetworkStatus
+            && configuration.ShouldKeepRuntimeStatus(_configuration, IsNetworkSetupRunning);
+        _configuration = configuration;
+        HasNetworkConfiguration = configuration.CanSetUp;
+        if (!keepRuntimeStatus)
+        {
+            _receivedNetworkStatus = false;
+            ApplyNetworkStatus(new(ENetworkAvailabilityState.Idle, configuration.IdleMessage));
+        }
+    }
+
+    private async Task RefreshRuntimeStatus()
+    {
+        var profile = _config.IndexId.IsNotEmpty()
+            ? await AppManager.Instance.GetProfileItem(_config.IndexId)
+            : null;
+
+        ActiveNodeName = profile?.Remarks.IsNotEmpty() == true
+            ? profile.Remarks
+            : "未选择节点";
+
+        var profileExs = await ProfileExManager.Instance.GetProfileExs();
+        var delay = profileExs.FirstOrDefault(item => item.IndexId == _config.IndexId)?.Delay ?? 0;
+        CurrentDelay = delay switch
+        {
+            > 0 => $"{delay} ms",
+            < 0 => "不可用",
+            _ => "未测速"
+        };
+
+        SystemProxyStatus = TunTakeoverPolicy.FormatRuntimeProxyStatus(_config);
     }
 
     private static string NormalizeSupportUrl(string? value)

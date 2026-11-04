@@ -23,22 +23,22 @@
             VerticalAlignment="Top">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="16" />
+                <RowDefinition Height="12" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" MinHeight="104">
+            <Grid Grid.Row="0" MinHeight="108">
                 <Border
                     Background="{DynamicResource MaterialDesignPaper}"
                     BorderBrush="{DynamicResource MaterialDesignDivider}"
                     BorderThickness="1"
                     CornerRadius="6"
-                    Opacity="0.9" />
+                    Opacity="0.88" />
                 <Grid Margin="24,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="1" />
-                        <ColumnDefinition Width="Auto" MinWidth="230" />
+                        <ColumnDefinition Width="Auto" MinWidth="220" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
@@ -47,7 +47,7 @@
                                 VerticalAlignment="Center"
                                 FontSize="13"
                                 FontWeight="SemiBold"
-                                Opacity="0.65"
+                                Opacity="0.72"
                                 Text="当前订阅" />
                             <Border
                                 Width="1"
@@ -55,21 +55,21 @@
                                 Margin="12,0"
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource MaterialDesignDivider}" />
-                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="共有流量" />
+                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="总流量" />
                             <TextBlock
                                 x:Name="txtTotalTraffic"
                                 Margin="6,0,14,0"
                                 VerticalAlignment="Center"
                                 FontSize="13"
                                 FontWeight="SemiBold" />
-                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="剩余流量" />
+                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="剩余" />
                             <TextBlock
                                 x:Name="txtRemainingTraffic"
                                 Margin="6,0,14,0"
                                 VerticalAlignment="Center"
                                 FontSize="13"
                                 FontWeight="SemiBold" />
-                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="已用流量" />
+                            <TextBlock VerticalAlignment="Center" FontSize="11" Opacity="0.62" Text="已用" />
                             <TextBlock
                                 x:Name="txtUsedTraffic"
                                 Margin="6,0,0,0"
@@ -79,8 +79,8 @@
                         </WrapPanel>
                         <TextBlock
                             x:Name="txtSubscriptionName"
-                            Margin="0,7,18,0"
-                            FontSize="24"
+                            Margin="0,8,18,0"
+                            FontSize="22"
                             FontWeight="SemiBold"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
@@ -98,7 +98,7 @@
                             x:Name="txtLastUpdated"
                             HorizontalAlignment="Right"
                             FontSize="12"
-                            Opacity="0.62" />
+                            Opacity="0.65" />
                         <StackPanel
                             Margin="0,10,0,0"
                             HorizontalAlignment="Right"
@@ -117,72 +117,192 @@
                 </Grid>
             </Grid>
 
-            <Grid
-                Grid.Row="2"
-                MinHeight="132"
-                MaxHeight="240">
-                <Border
-                    Background="{DynamicResource MaterialDesignPaper}"
-                    BorderBrush="{DynamicResource MaterialDesignDivider}"
-                    BorderThickness="1"
-                    CornerRadius="6"
-                    Opacity="0.88" />
-                <Grid Margin="22,16">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+            <Grid Grid.Row="2" MinHeight="196" MaxHeight="240">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" MinWidth="288" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="3*" />
+                </Grid.ColumnDefinitions>
 
-                    <DockPanel LastChildFill="True">
-                        <Button
-                            x:Name="btnSupport"
-                            Height="32"
-                            MinWidth="116"
-                            Padding="12,0"
-                            HorizontalAlignment="Right"
-                            AutomationProperties.Name="点我有惊喜"
-                            DockPanel.Dock="Right"
-                            Style="{StaticResource DefButton}"
-                            ToolTip="打开服务商提供的链接">
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="16"
-                                    Height="16"
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    Kind="GiftOutline" />
-                                <TextBlock VerticalAlignment="Center" Text="点我有惊喜" />
-                            </StackPanel>
-                        </Button>
-                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                <Grid Grid.Column="0">
+                    <Border
+                        Background="{DynamicResource MaterialDesignPaper}"
+                        BorderBrush="{DynamicResource MaterialDesignDivider}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Opacity="0.88" />
+                    <Border
+                        x:Name="networkStatusAccent"
+                        Width="4"
+                        Margin="1,12,0,12"
+                        HorizontalAlignment="Left"
+                        CornerRadius="2" />
+                    <Grid Margin="20,16,18,16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon
+                                x:Name="networkStatusIcon"
                                 Width="18"
                                 Height="18"
                                 Margin="0,0,8,0"
                                 VerticalAlignment="Center"
-                                Kind="BullhornOutline" />
+                                Kind="WifiCheck" />
                             <TextBlock
                                 VerticalAlignment="Center"
                                 FontSize="14"
                                 FontWeight="SemiBold"
-                                Text="服务公告" />
+                                Text="网络状态" />
                         </StackPanel>
-                    </DockPanel>
 
-                    <ScrollViewer
-                        Grid.Row="2"
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
+                        <StackPanel Grid.Row="1" Margin="0,13,0,0" Orientation="Horizontal">
+                            <Ellipse
+                                x:Name="networkStatusDot"
+                                Width="8"
+                                Height="8"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center" />
+                            <TextBlock
+                                x:Name="txtNetworkStatus"
+                                VerticalAlignment="Center"
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+
                         <TextBlock
-                            x:Name="txtAnnouncement"
-                            FontSize="14"
-                            LineHeight="24"
-                            TextWrapping="Wrap" />
-                    </ScrollViewer>
+                            x:Name="txtNetworkStatusDetail"
+                            Grid.Row="2"
+                            Margin="16,4,0,0"
+                            FontSize="11"
+                            Opacity="0.65"
+                            TextTrimming="CharacterEllipsis" />
+
+                        <Grid Grid.Row="3" Margin="0,12,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock FontSize="11" Opacity="0.58" Text="当前节点" />
+                            <TextBlock
+                                x:Name="txtActiveNodeName"
+                                Grid.Column="1"
+                                Margin="12,0,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="1" Margin="0,5,0,0" FontSize="11" Opacity="0.58" Text="当前延迟" />
+                            <TextBlock
+                                x:Name="txtCurrentDelay"
+                                Grid.Row="1"
+                                Grid.Column="1"
+                                Margin="12,5,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold" />
+                            <TextBlock Grid.Row="2" Margin="0,5,0,0" FontSize="11" Opacity="0.58" Text="系统代理" />
+                            <TextBlock
+                                x:Name="txtSystemProxyStatus"
+                                Grid.Row="2"
+                                Grid.Column="1"
+                                Margin="12,5,0,0"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" />
+                        </Grid>
+
+                        <WrapPanel Grid.Row="4" HorizontalAlignment="Left">
+                            <Button
+                                x:Name="btnOneClickNetworkSetup"
+                                MinWidth="126"
+                                Height="34"
+                                Content="一键设置网络"
+                                Style="{StaticResource DefButton}" />
+                            <Button
+                                x:Name="btnContactSupport"
+                                MinWidth="88"
+                                Height="34"
+                                Margin="8,0,0,0"
+                                Content="联系客服"
+                                Style="{StaticResource DefButton}" />
+                        </WrapPanel>
+                    </Grid>
+                </Grid>
+
+                <Grid Grid.Column="2">
+                    <Border
+                        Background="{DynamicResource MaterialDesignPaper}"
+                        BorderBrush="{DynamicResource MaterialDesignDivider}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Opacity="0.88" />
+                    <Grid Margin="22,16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel LastChildFill="True">
+                            <Button
+                                x:Name="btnSupport"
+                                Height="32"
+                                MinWidth="116"
+                                Padding="12,0"
+                                HorizontalAlignment="Right"
+                                AutomationProperties.Name="点我有惊喜"
+                                DockPanel.Dock="Right"
+                                Opacity="0.92"
+                                Style="{StaticResource DefButton}"
+                                ToolTip="打开服务商提供的链接">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                        Width="16"
+                                        Height="16"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        Kind="GiftOutline" />
+                                    <TextBlock VerticalAlignment="Center" Text="点我有惊喜" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    Kind="BullhornOutline" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    Text="服务公告" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <ScrollViewer
+                            Grid.Row="2"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <TextBlock
+                                x:Name="txtAnnouncement"
+                                FontSize="13"
+                                LineHeight="22"
+                                TextWrapping="Wrap" />
+                        </ScrollViewer>
+                    </Grid>
                 </Grid>
             </Grid>
-
         </Grid>
     </ScrollViewer>
 </reactiveui:ReactiveUserControl>

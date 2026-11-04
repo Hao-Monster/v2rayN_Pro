@@ -1,12 +1,12 @@
 using AwesomeAssertions;
 using ServiceLib.Models.Dto;
-using Xunit;
+using TUnit.Core;
 
 namespace ServiceLib.Tests.Models;
 
 public class SemanticVersionTests
 {
-    [Fact]
+    [Test]
     public void CustomRevision_ShouldBeNewerThanItsUpstreamBase()
     {
         var custom = new SemanticVersion("v7.23.4-custom.1");
@@ -16,7 +16,7 @@ public class SemanticVersionTests
         custom.Should().NotBe(upstream);
     }
 
-    [Fact]
+    [Test]
     public void LaterCustomRevision_ShouldWin()
     {
         var current = new SemanticVersion("7.23.4-custom.1");
@@ -26,7 +26,7 @@ public class SemanticVersionTests
         (current <= update).Should().BeTrue();
     }
 
-    [Fact]
+    [Test]
     public void NewerUpstreamBase_ShouldWinOverCustomRevision()
     {
         var current = new SemanticVersion("7.23.4-custom.99");
@@ -35,7 +35,7 @@ public class SemanticVersionTests
         (current >= update).Should().BeFalse();
     }
 
-    [Fact]
+    [Test]
     public void FourPartNumericVersion_ShouldRemainSupported()
     {
         var current = new SemanticVersion("7.23.4.1");

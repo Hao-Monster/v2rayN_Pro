@@ -90,7 +90,8 @@ public class UIItem
     public bool EnableAutoAdjustMainLvColWidth { get; set; }
     public int MainGirdHeight1 { get; set; }
     public int MainGirdHeight2 { get; set; }
-    public EGirdOrientation MainGirdOrientation { get; set; } = EGirdOrientation.Vertical;
+    public EGirdOrientation MainGirdOrientation { get; set; } = EGirdOrientation.Tab;
+    public bool LeftRailLayoutMigrated { get; set; }
     public EMainWorkspacePage MainWorkspacePage { get; set; } = EMainWorkspacePage.Home;
     public string WorkspaceBackgroundImage { get; set; } = WorkspaceBackgroundHandler.DefaultImageFileName;
     public double WorkspaceBackgroundOpacity { get; set; } = 1.0;
@@ -146,12 +147,20 @@ public class TunModeItem
     public bool EnableTun { get; set; }
     public bool AutoRoute { get; set; } = true;
     public bool StrictRoute { get; set; } = true;
-    public string Stack { get; set; }
-    public int Mtu { get; set; }
-    public bool EnableIPv6Address { get; set; }
+    public string Stack { get; set; } = "mixed";
+    public int Mtu { get; set; } = 1500;
+    public bool EnableIPv6Address { get; set; } = true;
     public string IcmpRouting { get; set; }
-    public bool EnableLegacyProtect { get; set; }
+    public bool EnableLegacyProtect { get; set; } = true;
     public List<string>? RouteExcludeAddress { get; set; }
+    public string IPv4Address { get; set; }
+    public string IPv6Address { get; set; }
+    public bool AutoFakeIPInTun { get; set; } = true;
+    public bool BlockEncryptedDnsBypass { get; set; } = true;
+    public bool ClearSysProxyWhenTun { get; set; } = true;
+    public bool PreferSingboxInTun { get; set; } = true;
+    public ESysProxyType? LastSysProxyBeforeTun { get; set; }
+    public int TunTakeoverSchemaVersion { get; set; }
 }
 
 [Serializable]
@@ -210,12 +219,11 @@ public class HysteriaItem
 [Serializable]
 public class ClashUIItem
 {
-    public ERuleMode RuleMode { get; set; }
     public bool EnableIPv6 { get; set; }
     public bool EnableMixinContent { get; set; }
     public int ProxiesSorting { get; set; }
     public bool ProxiesAutoRefresh { get; set; }
-    public int ProxiesAutoDelayTestInterval { get; set; } = 10;
+    public int ProxiesRefreshInterval { get; set; } = 2;
     public bool ConnectionsAutoRefresh { get; set; }
     public int ConnectionsRefreshInterval { get; set; } = 2;
     public List<ColumnItem> ConnectionsColumnItem { get; set; }
@@ -244,17 +252,24 @@ public class WebDavItem
 [Serializable]
 public class CheckUpdateItem
 {
-    public bool CheckPreReleaseUpdate { get; set; }
+    public bool UpdateViaProxy { get; set; } = true;
     public List<string>? SelectedCoreTypes { get; set; }
+    public List<string>? CheckPreReleaseCoreTypes { get; set; }
 }
 
 [Serializable]
 public class Fragment4RayItem
 {
     public string? Packets { get; set; }
-    public string? Length { get; set; }
-    public string? Interval { get; set; }
+    public List<string>? Lengths { get; set; }
+    public List<string>? Delays { get; set; }
     public string? MaxSplit { get; set; }
+
+    // For migration from old version, remove those properties in the future
+    public string? Length { get; set; }
+
+    public string? Interval { get; set; }
+    // migration end
 }
 
 [Serializable]
@@ -272,14 +287,28 @@ public class SimpleDNSItem
     public bool? AddCommonHosts { get; set; }
     public bool? FakeIP { get; set; }
     public bool? GlobalFakeIp { get; set; }
+    public string? FakeIPRange { get; set; }
+    public string? FakeIPv6Range { get; set; }
     public bool? BlockBindingQuery { get; set; }
+    public bool? BlockAAAAQuery { get; set; }
     public string? DirectDNS { get; set; }
     public string? RemoteDNS { get; set; }
     public string? BootstrapDNS { get; set; }
     public string? Strategy4Freedom { get; set; }
     public string? Strategy4Proxy { get; set; }
+    public string? Strategy4ProxyDial { get; set; }
     public bool? ServeStale { get; set; }
     public bool? ParallelQuery { get; set; }
     public string? Hosts { get; set; }
     public string? DirectExpectedIPs { get; set; }
+    public bool? EnableHappyEyeballs { get; set; }
+}
+
+[Serializable]
+public class HappyEyeballs4RayItem
+{
+    public int? TryDelayMs { get; set; }
+    public bool? PrioritizeIPv6 { get; set; }
+    public int? Interleave { get; set; }
+    public int? MaxConcurrentTry { get; set; }
 }

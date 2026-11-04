@@ -609,7 +609,7 @@ package_binary() {
   write_desktop_file "$stage"
   write_maintainer_scripts "$debian_dir"
 
-  extra_depends="libc6 (>= 2.39), fontconfig (>= 2.15.0), desktop-file-utils (>= 0.26), xdg-utils (>= 1.2.0), coreutils (>= 9.5), bash (>= 5.2.26), libfreetype6 (>= 2.13)"
+  extra_depends="libc6 (>= 2.39), fontconfig (>= 2.15.0), desktop-file-utils (>= 0.26), xdg-utils (>= 1.1.3), coreutils (>= 9.4), bash (>= 5.2.21), libfreetype6 (>= 2.13)"
 
   mkdir -p "$workdir/debian"
   cat > "$workdir/debian/control" <<EOF
@@ -675,6 +675,15 @@ EOF
   find "$stage/opt/v2rayN" -type d -exec chmod 0755 {} +
   find "$stage/opt/v2rayN" -type f -exec chmod 0644 {} +
   [[ -f "$stage/opt/v2rayN/v2rayN" ]] && chmod 0755 "$stage/opt/v2rayN/v2rayN" || true
+
+  # Core binaries must be executable before installation: ordinary users cannot
+  # chmod the root-owned files installed by dpkg.
+  local core
+  for core in xray/xray sing_box/sing-box mihomo/mihomo; do
+    if [[ -f "$stage/opt/v2rayN/bin/$core" ]]; then
+      chmod 0755 "$stage/opt/v2rayN/bin/$core"
+    fi
+  done
 
   deb_out="$OUTPUT_DIR/v2rayn_${VERSION}_${deb_arch}.deb"
   dpkg-deb --root-owner-group --build "$stage" "$deb_out"

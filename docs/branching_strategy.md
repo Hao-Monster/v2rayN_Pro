@@ -17,7 +17,7 @@
 ## 远程仓库
 
 ```text
-origin    https://github.com/FengHaoyun-MONSTER/v2rayN_Pro.git
+origin    https://github.com/Hao-Monster/v2rayN_Pro.git
 upstream  https://github.com/2dust/v2rayN.git
 ```
 

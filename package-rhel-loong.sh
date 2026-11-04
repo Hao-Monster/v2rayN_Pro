@@ -12,8 +12,8 @@ MIN_KERNEL="6.12"
 PKGROOT="v2rayN-publish"
 PROJECT_HINT="v2rayN.Desktop/v2rayN.Desktop.csproj"
 RPM_TOPDIR="${HOME}/rpmbuild"
-DOTNET_LOONGARCH_VERSION="10.0.109"
-DOTNET_LOONGARCH_TAG="v10.0.109-loongarch64"
+DOTNET_LOONGARCH_VERSION="10.0.111"
+DOTNET_LOONGARCH_TAG="v10.0.111-loongarch64"
 DOTNET_LOONGARCH_BASE="https://github.com/loongson/dotnet/releases/download"
 DOTNET_LOONGARCH_FILE="dotnet-sdk-${DOTNET_LOONGARCH_VERSION}-linux-loongarch64.tar.gz"
 DOTNET_SDK_URL="${DOTNET_LOONGARCH_BASE}/${DOTNET_LOONGARCH_TAG}/${DOTNET_LOONGARCH_FILE}"
@@ -513,9 +513,9 @@ Requires:       cairo, pango, openssl, mesa-libEGL, mesa-libGL
 Requires:       glibc >= 2.39
 Requires:       fontconfig >= 2.15.0
 Requires:       desktop-file-utils >= 0.26
-Requires:       xdg-utils >= 1.2.0
-Requires:       coreutils >= 9.5
-Requires:       bash >= 5.2.26
+Requires:       xdg-utils >= 1.1.3
+Requires:       coreutils >= 9.4
+Requires:       bash >= 5.2.21
 Requires:       freetype >= 2.13
 
 %description

@@ -36,7 +36,7 @@ if ($Target -in @("all", "tests")) {
     Invoke-Checked `
         -Title "ServiceLib tests" `
         -File "dotnet" `
-        -Arguments @("test", "v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj", "-c", $Configuration)
+        -Arguments @("test", "--project", "v2rayN/ServiceLib.Tests", "-c", $Configuration)
 }
 
 if ($Target -in @("all", "windows")) {

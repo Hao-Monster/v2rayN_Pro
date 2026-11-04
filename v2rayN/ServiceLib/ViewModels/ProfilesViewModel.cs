@@ -1,12 +1,28 @@
 namespace ServiceLib.ViewModels;
 
-public class ProfilesViewModel : MyReactiveObject
+public partial class ProfilesViewModel : MyReactiveObject
 {
+    public Interaction<string, bool> ShowYesNoInteraction { get; } = new();
+    public Interaction<ProfileItem, bool> SaveFileDialogInteraction { get; } = new();
+    public Interaction<string, RxVoid> SetClipboardDataInteraction { get; } = new();
+    public Interaction<RxVoid, RxVoid> ProfilesFocusInteraction { get; } = new();
+    public Interaction<string, RxVoid> ShareServerInteraction { get; } = new();
+    public Interaction<RxVoid, RxVoid> DispatcherRefreshServersBizInteraction { get; } = new();
+    public Interaction<RxVoid, RxVoid> AdjustMainLvColWidthInteraction { get; } = new();
+
+    public EventChannel<RxVoid> ReloadRequested { get; } = new();
+    public EventChannel<RxVoid> RefreshServersRequested { get; } = new();
+
     #region private prop
 
-    private List<ProfileItem> _lstProfile;
     private string _serverFilter = string.Empty;
     private readonly Dictionary<string, bool> _dicHeaderSort = new();
+    private readonly Dictionary<string, (string SubId, int Delay)> _allNodeStates = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _subLastSpeedtestAt = new(StringComparer.Ordinal);
+    private bool _syncingSubSelection;
+    private int _cardRefreshVersion;
+    private string _activeServerSubId = string.Empty;
+    private bool _hasActiveServer;
     private SpeedtestService? _speedtestService;
     private CloudflareSpeedTestService? _cloudflareSpeedTestService;
     private string? _pendingSelectIndexId;
@@ -18,94 +34,105 @@ public class ProfilesViewModel : MyReactiveObject
 
     #region ObservableCollection
 
-    public IObservableCollection<ProfileItemModel> ProfileItems { get; } = new ObservableCollectionExtended<ProfileItemModel>();
+    public BulkObservableCollection<ProfileItemModel> ProfileItems { get; } = [];
 
-    public IObservableCollection<SubItem> SubItems { get; } = new ObservableCollectionExtended<SubItem>();
+    public BulkObservableCollection<SubItem> SubItems { get; } = [];
+
+    public BulkObservableCollection<SubscriptionCardItem> SubscriptionCards { get; } = [];
 
     [Reactive]
-    public ProfileItemModel SelectedProfile { get; set; }
+    public partial ProfileItemModel SelectedProfile { get; set; }
 
     public IList<ProfileItemModel> SelectedProfiles { get; set; }
 
     [Reactive]
-    public SubItem SelectedSub { get; set; }
+    public partial SubItem SelectedSub { get; set; }
 
     [Reactive]
-    public SubItem SelectedMoveToGroup { get; set; }
+    public partial SubscriptionCardItem? SelectedSubscriptionCard { get; set; }
 
     [Reactive]
-    public string ServerFilter { get; set; }
+    public partial SubItem SelectedMoveToGroup { get; set; }
 
     [Reactive]
-    public bool CanShowCloudflareBestNodeMenu { get; set; }
+    public partial string ServerFilter { get; set; }
 
     [Reactive]
-    public bool IsCloudflareOptimizing { get; set; }
+    public partial bool CanShowCloudflareBestNodeMenu { get; set; }
 
     [Reactive]
-    public string CloudflareBestNodeMenuHeader { get; set; } = "以此节点自动生成最优节点";
+    public partial bool IsCloudflareOptimizing { get; set; }
 
     [Reactive]
-    public string SelectedSubscriptionTraffic { get; set; } = string.Empty;
+    public partial string CloudflareBestNodeMenuHeader { get; set; } = "以此节点自动生成最优节点";
 
     [Reactive]
-    public bool HasSelectedSubscriptionTraffic { get; set; }
+    public partial string SelectedSubscriptionTraffic { get; set; } = string.Empty;
+
+    [Reactive]
+    public partial bool HasSelectedSubscriptionTraffic { get; set; }
 
     #endregion ObservableCollection
 
     #region Menu
 
     //servers delete
-    public ReactiveCommand<Unit, Unit> EditServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> EditServerCmd { get; }
 
-    public ReactiveCommand<Unit, Unit> RemoveServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> RemoveDuplicateServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> CopyServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> SetDefaultServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> ShareServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> GenerateCloudflareBestNodesCmd { get; }
-    public ReactiveCommand<Unit, Unit> GenGroupAllServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> GenGroupRegionServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> RemoveServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> RemoveDuplicateServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> CopyServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> SetDefaultServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ShareServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> GenerateCloudflareBestNodesCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> GenGroupAllServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> GenGroupRegionServerCmd { get; }
 
     //servers move
-    public ReactiveCommand<Unit, Unit> MoveTopCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MoveTopCmd { get; }
 
-    public ReactiveCommand<Unit, Unit> MoveUpCmd { get; }
-    public ReactiveCommand<Unit, Unit> MoveDownCmd { get; }
-    public ReactiveCommand<Unit, Unit> MoveBottomCmd { get; }
-    public ReactiveCommand<SubItem, Unit> MoveToGroupCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MoveUpCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MoveDownCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MoveBottomCmd { get; }
+    public ReactiveCommand<SubItem, RxVoid> MoveToGroupCmd { get; }
 
     //servers ping
-    public ReactiveCommand<Unit, Unit> MixedTestServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> MixedTestServerCmd { get; }
 
-    public ReactiveCommand<Unit, Unit> TcpingServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> RealPingServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> UdpTestServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> SpeedServerCmd { get; }
-    public ReactiveCommand<Unit, Unit> SortServerResultCmd { get; }
-    public ReactiveCommand<Unit, Unit> RemoveInvalidServerResultCmd { get; }
-    public ReactiveCommand<Unit, Unit> FastRealPingCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> TcpingServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> RealPingServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> UdpTestServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> SpeedServerCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> SortServerResultCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> RemoveInvalidServerResultCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> FastRealPingCmd { get; }
 
     //servers export
-    public ReactiveCommand<Unit, Unit> Export2ClientConfigCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> Export2ClientConfigCmd { get; }
 
-    public ReactiveCommand<Unit, Unit> Export2ClientConfigClipboardCmd { get; }
-    public ReactiveCommand<Unit, Unit> Export2ShareUrlCmd { get; }
-    public ReactiveCommand<Unit, Unit> Export2ShareUrlBase64Cmd { get; }
-    public ReactiveCommand<Unit, Unit> Export2InnerUriCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> Export2ClientConfigClipboardCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> Export2ShareUrlCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> Export2ShareUrlBase64Cmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> Export2InnerUriCmd { get; }
 
-    public ReactiveCommand<Unit, Unit> AddSubCmd { get; }
-    public ReactiveCommand<Unit, Unit> EditSubCmd { get; }
-    public ReactiveCommand<Unit, Unit> DeleteSubCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> AddSubCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> EditSubCmd { get; }
+    public ReactiveCommand<RxVoid, RxVoid> DeleteSubCmd { get; }
+    public ReactiveCommand<SubscriptionCardItem, RxVoid> UpdateSubscriptionCardCmd { get; }
+    public ReactiveCommand<string, RxVoid> OpenSubscriptionUrlCmd { get; }
 
     #endregion Menu
 
     #region Init
 
-    public ProfilesViewModel(Func<EViewAction, object?, Task<bool>>? updateView)
+    private readonly Func<string, Task<bool>>? _activateServer;
+
+    public ProfilesViewModel() : this(null) { }
+
+    internal ProfilesViewModel(Func<string, Task<bool>>? activateServer)
     {
+        _activateServer = activateServer;
         _config = AppManager.Instance.Config;
-        _updateView = updateView;
 
         #region WhenAnyValue && ReactiveCommand
 
@@ -119,10 +146,58 @@ public class ProfilesViewModel : MyReactiveObject
                 && !selectedSource.IndexId.IsNullOrEmpty()
                 && !optimizing);
 
-        this.WhenAnyValue(
-            x => x.SelectedSub,
-            y => y != null && !y.Remarks.IsNullOrEmpty() && _config.SubIndexId != y.Id)
-                .Subscribe(async c => await SubSelectedChangedAsync(c));
+        this.WhenAnyValue(x => x.SelectedSubscriptionCard)
+            .Subscribe(card =>
+            {
+                if (_syncingSubSelection || card is null)
+                {
+                    return;
+                }
+
+                _syncingSubSelection = true;
+                try
+                {
+                    var targetSub = SubItems.FirstOrDefault(s => string.Equals(s.Id ?? string.Empty, card.Id, StringComparison.Ordinal))
+                        ?? card.SubItem;
+                    if (!ReferenceEquals(SelectedSub, targetSub))
+                    {
+                        SelectedSub = targetSub;
+                    }
+                }
+                finally
+                {
+                    _syncingSubSelection = false;
+                }
+            });
+        this.WhenAnyValue(x => x.SelectedSub)
+            .Subscribe(sub =>
+            {
+                if (_syncingSubSelection || sub is null || sub.Remarks.IsNullOrEmpty())
+                {
+                    return;
+                }
+
+                _syncingSubSelection = true;
+                try
+                {
+                    var targetId = sub.Id ?? string.Empty;
+                    var targetCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, targetId, StringComparison.Ordinal));
+                    if (targetCard is not null && !ReferenceEquals(SelectedSubscriptionCard, targetCard))
+                    {
+                        SelectedSubscriptionCard = targetCard;
+                    }
+                }
+                finally
+                {
+                    _syncingSubSelection = false;
+                }
+            });
+        this.WhenAnyValue(x => x.SelectedSub)
+            .Where(y => y != null && !y.Remarks.IsNullOrEmpty() && _config.SubIndexId != y.Id)
+            .SubscribeAsync(async _ => await SubSelectedChangedAsync());
+        this.WhenAnyValue(x => x.SelectedMoveToGroup)
+            .Where(y => y != null && !y.Remarks.IsNullOrEmpty())
+            .SubscribeAsync(async _ => await MoveToGroup());
         this.WhenAnyValue(
             x => x.SelectedProfile,
             selectedSource => selectedSource != null && !selectedSource.IndexId.IsNullOrEmpty())
@@ -131,15 +206,10 @@ public class ProfilesViewModel : MyReactiveObject
             x => x.IsCloudflareOptimizing,
             optimizing => optimizing ? "优选中..." : "以此节点自动生成最优节点")
                 .Subscribe(v => CloudflareBestNodeMenuHeader = v);
-        this.WhenAnyValue(
-             x => x.SelectedMoveToGroup,
-             y => y != null && !y.Remarks.IsNullOrEmpty())
-                 .Subscribe(async c => await MoveToGroup(c));
 
-        this.WhenAnyValue(
-          x => x.ServerFilter,
-          y => y != null && _serverFilter != y)
-              .Subscribe(async c => await ServerFilterChanged(c));
+        this.WhenAnyValue(x => x.ServerFilter)
+            .Where(y => y != null && _serverFilter != y)
+            .SubscribeAsync(async _ => await ServerFilterChanged());
 
         //servers delete
         EditServerCmd = ReactiveCommand.CreateFromTask(async () =>
@@ -266,10 +336,41 @@ public class ProfilesViewModel : MyReactiveObject
         {
             await DeleteSubAsync();
         });
+        UpdateSubscriptionCardCmd = ReactiveCommand.Create<SubscriptionCardItem>(card =>
+        {
+            if (card is null || !card.CanUpdateSubscription)
+            {
+                return;
+            }
+
+            if (card.IsAllGroup)
+            {
+                AppEvents.SubscriptionsUpdateRequested.Publish(false);
+                return;
+            }
+
+            if (card.Id.IsNotEmpty())
+            {
+                AppEvents.CurrentSubscriptionUpdateRequested.Publish(card.Id);
+            }
+        });
+        OpenSubscriptionUrlCmd = ReactiveCommand.Create<string>(url =>
+        {
+            var safeUrl = SubscriptionCardItem.NormalizeExternalUrl(url);
+            if (safeUrl.IsNotEmpty())
+            {
+                ProcUtils.ProcessStart(safeUrl);
+            }
+        });
 
         #endregion WhenAnyValue && ReactiveCommand
 
         #region AppEvents
+
+        StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.SelectedServer)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(_ => RefreshActiveConfigBadgesFromCache());
 
         AppEvents.ProfilesRefreshRequested
             .AsObservable()
@@ -284,17 +385,23 @@ public class ProfilesViewModel : MyReactiveObject
         AppEvents.SubscriptionAutoSpeedtestRequested
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(async _ => await AutoRealPingAndSort());
-
+            .Subscribe(async completion =>
+            {
+                try
+                {
+                    var success = await AutoRealPingAndSort();
+                    completion?.TrySetResult(success);
+                }
+                catch (Exception ex)
+                {
+                    Logging.SaveLog("Automatic subscription speed test failed", ex);
+                    completion?.TrySetResult(false);
+                }
+            });
         AppEvents.DispatcherStatisticsRequested
             .AsObservable()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(async result => await UpdateStatistics(result));
-
-        AppEvents.SetDefaultServerRequested
-            .AsObservable()
-            .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(async indexId => await SetDefaultServer(indexId));
+            .SubscribeAsync(async result => await UpdateStatistics(result));
 
         #endregion AppEvents
 
@@ -317,7 +424,7 @@ public class ProfilesViewModel : MyReactiveObject
 
     private void Reload()
     {
-        AppEvents.ReloadRequested.Publish();
+        ReloadRequested.Publish();
     }
 
     public async Task SetSpeedTestResult(SpeedTestResult result)
@@ -328,7 +435,14 @@ public class ProfilesViewModel : MyReactiveObject
             NoticeManager.Instance.Enqueue(result.Delay);
             return;
         }
+
         var item = ProfileItems.FirstOrDefault(it => it.IndexId == result.IndexId);
+        if (result.Delay.IsNotEmpty())
+        {
+            var delayVal = result.Delay.ToInt();
+            UpdateCardNodeDelayInPlace(result.IndexId, item?.Subid, delayVal);
+        }
+
         if (item == null)
         {
             return;
@@ -380,27 +494,19 @@ public class ProfilesViewModel : MyReactiveObject
 
     #region Servers && Groups
 
-    private async Task SubSelectedChangedAsync(bool c)
+    private async Task SubSelectedChangedAsync()
     {
         UpdateSelectedSubscriptionTraffic(SelectedSub);
-        if (!c)
-        {
-            return;
-        }
         _config.SubIndexId = SelectedSub?.Id;
         AppEvents.SubscriptionSelectionChanged.Publish(_config.SubIndexId ?? string.Empty);
 
         await RefreshServers();
 
-        await _updateView?.Invoke(EViewAction.ProfilesFocus, null);
+        await ProfilesFocusInteraction.HandleSafe(RxVoid.Default);
     }
 
-    private async Task ServerFilterChanged(bool c)
+    private async Task ServerFilterChanged()
     {
-        if (!c)
-        {
-            return;
-        }
         _serverFilter = ServerFilter;
         if (_serverFilter.IsNullOrEmpty())
         {
@@ -410,19 +516,19 @@ public class ProfilesViewModel : MyReactiveObject
 
     public async Task RefreshServers()
     {
-        AppEvents.ProfilesRefreshRequested.Publish();
+        RefreshServersRequested.Publish();
 
-        await Task.Delay(200);
+        // await Task.Delay(200);
+
+        await Task.CompletedTask;
     }
 
-    private async Task RefreshServersBiz()
+    public async Task RefreshServersBiz()
     {
         var lstModel = await GetProfileItemsEx(_config.SubIndexId, _serverFilter);
-        _lstProfile = JsonUtils.Deserialize<List<ProfileItem>>(JsonUtils.Serialize(lstModel)) ?? [];
 
-        ProfileItems.Clear();
-        ProfileItems.AddRange(lstModel);
-        if (lstModel.Count > 0)
+        ProfileItems.ReplaceRange(lstModel ?? []);
+        if (lstModel?.Count > 0)
         {
             ProfileItemModel? selected = null;
             if (!_pendingSelectIndexId.IsNullOrEmpty())
@@ -434,21 +540,259 @@ public class ProfilesViewModel : MyReactiveObject
             SelectedProfile = selected ?? lstModel.First();
         }
 
-        await _updateView?.Invoke(EViewAction.DispatcherRefreshServersBiz, null);
+        AppEvents.NotifyProfilesRefreshed();
+        await RefreshSubscriptionCardsAsync();
+        await DispatcherRefreshServersBizInteraction.HandleSafe(RxVoid.Default);
     }
 
-    private async Task RefreshSubscriptions()
+    public async Task RefreshSubscriptions()
     {
-        var subItems = await AppManager.Instance.SubItems();
+        var subItems = await AppManager.Instance.SubItems() ?? [];
         subItems.Insert(0, new SubItem { Remarks = ResUI.AllGroupServers });
 
-        SubItems.Clear();
-        SubItems.AddRange(subItems);
+        SubItems.ReplaceRange(subItems);
 
         SelectedSub = (_config.SubIndexId.IsNotEmpty()
                         ? subItems.FirstOrDefault(t => t.Id == _config.SubIndexId)
                         : null) ?? subItems.FirstOrDefault();
         UpdateSelectedSubscriptionTraffic(SelectedSub);
+        await RefreshSubscriptionCardsAsync();
+    }
+
+    private async Task RefreshSubscriptionCardsAsync()
+    {
+        var refreshVersion = ++_cardRefreshVersion;
+        var allProfiles = await AppManager.Instance.ProfileItems(string.Empty) ?? [];
+        var profileExs = await ProfileExManager.Instance.GetProfileExs();
+        if (refreshVersion != _cardRefreshVersion)
+        {
+            return;
+        }
+
+        var subItems = SubItems.ToList();
+        if (subItems.Count == 0)
+        {
+            return;
+        }
+
+        var delayByIndexId = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var ex in profileExs)
+        {
+            if (ex.IndexId.IsNotEmpty())
+            {
+                delayByIndexId[ex.IndexId] = ex.Delay;
+            }
+        }
+
+        _allNodeStates.Clear();
+        var delaysBySubId = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        var allDelays = new List<int>(allProfiles.Count);
+        var activeSubId = string.Empty;
+        var hasActiveNode = false;
+        var activeIndexId = _config.IndexId ?? string.Empty;
+
+        foreach (var profile in allProfiles)
+        {
+            if (profile.IndexId.IsNullOrEmpty())
+            {
+                continue;
+            }
+
+            var subId = profile.Subid ?? string.Empty;
+            var delay = delayByIndexId.GetValueOrDefault(profile.IndexId, 0);
+            _allNodeStates[profile.IndexId] = (subId, delay);
+            allDelays.Add(delay);
+
+            if (!delaysBySubId.TryGetValue(subId, out var subDelays))
+            {
+                subDelays = [];
+                delaysBySubId[subId] = subDelays;
+            }
+            subDelays.Add(delay);
+
+            if (activeIndexId.IsNotEmpty() && string.Equals(profile.IndexId, activeIndexId, StringComparison.Ordinal))
+            {
+                hasActiveNode = true;
+                activeSubId = subId;
+            }
+        }
+
+        _hasActiveServer = hasActiveNode;
+        _activeServerSubId = activeSubId;
+
+        var remoteCount = 0;
+        var enabledRemoteCount = 0;
+        long totalUp = 0;
+        long totalDown = 0;
+        foreach (var sub in subItems)
+        {
+            if (sub.Id.IsNotEmpty() && (sub.Url.IsNotEmpty() || sub.MoreUrl.IsNotEmpty()))
+            {
+                remoteCount++;
+                if (sub.Enabled)
+                {
+                    enabledRemoteCount++;
+                }
+                totalUp += Math.Max(0L, sub.TrafficUpload);
+                totalDown += Math.Max(0L, sub.TrafficDownload);
+            }
+        }
+        var allSummary = new SubscriptionAllSummary(remoteCount, enabledRemoteCount, totalUp, totalDown);
+
+        DateTimeOffset? latestAnySpeedtest = _subLastSpeedtestAt.TryGetValue(string.Empty, out var rootTs)
+            ? rootTs
+            : null;
+        foreach (var sub in subItems)
+        {
+            var id = sub.Id ?? string.Empty;
+            if (id.IsNullOrEmpty())
+            {
+                continue;
+            }
+
+            if (!_subLastSpeedtestAt.TryGetValue(id, out var subTs))
+            {
+                var snapshotTs = SubscriptionSnapshotHandler.TryGetSnapshotTimestamp(id);
+                if (snapshotTs is { } snap)
+                {
+                    _subLastSpeedtestAt[id] = snap;
+                    subTs = snap;
+                }
+            }
+
+            if (subTs != default && (latestAnySpeedtest is null || subTs > latestAnySpeedtest.Value))
+            {
+                latestAnySpeedtest = subTs;
+            }
+        }
+
+        var nowLocal = DateTimeOffset.Now;
+        var existingById = new Dictionary<string, SubscriptionCardItem>(StringComparer.Ordinal);
+        foreach (var existing in SubscriptionCards)
+        {
+            existingById.TryAdd(existing.Id, existing);
+        }
+
+        var sameOrder = SubscriptionCards.Count == subItems.Count
+            && SubscriptionCards.Select(c => c.Id).SequenceEqual(subItems.Select(s => s.Id ?? string.Empty), StringComparer.Ordinal);
+
+        var updatedCards = sameOrder ? null : new List<SubscriptionCardItem>(subItems.Count);
+        for (var i = 0; i < subItems.Count; i++)
+        {
+            var sub = subItems[i];
+            var id = sub.Id ?? string.Empty;
+            var card = sameOrder
+                ? SubscriptionCards[i]
+                : existingById.GetValueOrDefault(id) ?? new SubscriptionCardItem();
+
+            SubscriptionNodeMetrics metrics;
+            bool isActiveConfig;
+            if (id.IsNullOrEmpty())
+            {
+                metrics = SubscriptionCardItem.BuildNodeMetrics(allDelays, latestAnySpeedtest);
+                isActiveConfig = hasActiveNode;
+            }
+            else
+            {
+                var subDelays = delaysBySubId.TryGetValue(id, out var list) ? list : [];
+                var lastTs = _subLastSpeedtestAt.TryGetValue(id, out var ts) ? ts : (DateTimeOffset?)null;
+                metrics = SubscriptionCardItem.BuildNodeMetrics(subDelays, lastTs);
+                isActiveConfig = hasActiveNode && string.Equals(activeSubId, id, StringComparison.Ordinal);
+            }
+
+            card.Apply(sub, metrics, isActiveConfig, allSummary, nowLocal);
+            updatedCards?.Add(card);
+        }
+
+        _syncingSubSelection = true;
+        try
+        {
+            if (updatedCards is not null)
+            {
+                SubscriptionCards.ReplaceRange(updatedCards);
+            }
+
+            var selectedSubId = SelectedSub?.Id ?? _config.SubIndexId ?? string.Empty;
+            var targetCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, selectedSubId, StringComparison.Ordinal))
+                ?? SubscriptionCards.FirstOrDefault();
+            if (!ReferenceEquals(SelectedSubscriptionCard, targetCard))
+            {
+                SelectedSubscriptionCard = targetCard;
+            }
+        }
+        finally
+        {
+            _syncingSubSelection = false;
+        }
+    }
+
+    private void UpdateCardNodeDelayInPlace(string indexId, string? fallbackSubId, int delay)
+    {
+        string subId;
+        if (_allNodeStates.TryGetValue(indexId, out var existing))
+        {
+            subId = existing.SubId;
+        }
+        else
+        {
+            subId = fallbackSubId ?? string.Empty;
+        }
+
+        _allNodeStates[indexId] = (subId, delay);
+
+        var now = DateTimeOffset.Now;
+        _subLastSpeedtestAt[string.Empty] = now;
+        if (subId.IsNotEmpty())
+        {
+            _subLastSpeedtestAt[subId] = now;
+        }
+
+        var allCard = SubscriptionCards.FirstOrDefault(c => c.IsAllGroup);
+        if (allCard is not null)
+        {
+            var allMetrics = SubscriptionCardItem.BuildNodeMetrics(_allNodeStates.Values.Select(v => v.Delay), now);
+            allCard.ApplyNodeMetrics(allMetrics, now);
+        }
+
+        if (subId.IsNotEmpty())
+        {
+            var subCard = SubscriptionCards.FirstOrDefault(c => string.Equals(c.Id, subId, StringComparison.Ordinal));
+            if (subCard is not null)
+            {
+                var subDelays = _allNodeStates.Values
+                    .Where(v => string.Equals(v.SubId, subId, StringComparison.Ordinal))
+                    .Select(v => v.Delay);
+                var subMetrics = SubscriptionCardItem.BuildNodeMetrics(subDelays, now);
+                subCard.ApplyNodeMetrics(subMetrics, now);
+            }
+        }
+    }
+
+    private void RefreshActiveConfigBadgesFromCache()
+    {
+        if (SubscriptionCards.Count == 0)
+        {
+            return;
+        }
+
+        var activeIndexId = _config.IndexId ?? string.Empty;
+        if (activeIndexId.IsNotEmpty() && _allNodeStates.TryGetValue(activeIndexId, out var entry))
+        {
+            _hasActiveServer = true;
+            _activeServerSubId = entry.SubId;
+        }
+        else if (activeIndexId.IsNullOrEmpty())
+        {
+            _hasActiveServer = false;
+            _activeServerSubId = string.Empty;
+        }
+
+        foreach (var card in SubscriptionCards)
+        {
+            card.IsActiveConfig = card.IsAllGroup
+                ? _hasActiveServer
+                : _hasActiveServer && string.Equals(card.Id, _activeServerSubId, StringComparison.Ordinal);
+        }
     }
 
     private void UpdateSelectedSubscriptionTraffic(SubItem? item)
@@ -474,6 +818,11 @@ public class ProfilesViewModel : MyReactiveObject
     {
         const double bytesPerGigabyte = 1024d * 1024d * 1024d;
         return $"{bytes / bytesPerGigabyte:#,##0.##} GB";
+    }
+
+    public async Task AdjustMainLvColWidth()
+    {
+        await AdjustMainLvColWidthInteraction.HandleSafe(RxVoid.Default);
     }
 
     private async Task<List<ProfileItemModel>?> GetProfileItemsEx(string subid, string filter)
@@ -557,17 +906,20 @@ public class ProfilesViewModel : MyReactiveObject
         var eConfigType = item.ConfigType;
 
         bool? ret = false;
-        if (eConfigType == EConfigType.Custom)
+        if (eConfigType is EConfigType.Custom or EConfigType.Outbound)
         {
-            ret = await _updateView?.Invoke(EViewAction.AddServer2Window, item);
+            var addServer2ViewModel = new AddServer2ViewModel(item);
+            ret = await AppManager.Instance.WindowDialog.ShowDialogAsync(addServer2ViewModel);
         }
         else if (eConfigType.IsGroupType())
         {
-            ret = await _updateView?.Invoke(EViewAction.AddGroupServerWindow, item);
+            var addGroupServerViewModel = new AddGroupServerViewModel(item);
+            ret = await AppManager.Instance.WindowDialog.ShowDialogAsync(addGroupServerViewModel);
         }
         else
         {
-            ret = await _updateView?.Invoke(EViewAction.AddServerWindow, item);
+            var addServerViewModel = new AddServerViewModel(item);
+            ret = await AppManager.Instance.WindowDialog.ShowDialogAsync(addServerViewModel);
         }
         if (ret == true)
         {
@@ -586,7 +938,7 @@ public class ProfilesViewModel : MyReactiveObject
         {
             return;
         }
-        if (await _updateView?.Invoke(EViewAction.ShowYesNo, null) == false)
+        if (await ShowYesNoInteraction.HandleSafe(ResUI.RemoveServer) == false)
         {
             return;
         }
@@ -607,7 +959,7 @@ public class ProfilesViewModel : MyReactiveObject
 
     private async Task RemoveDuplicateServer()
     {
-        if (await _updateView?.Invoke(EViewAction.ShowYesNo, null) == false)
+        if (await ShowYesNoInteraction.HandleSafe(ResUI.RemoveServer) == false)
         {
             return;
         }
@@ -644,7 +996,7 @@ public class ProfilesViewModel : MyReactiveObject
         await SetDefaultServer(SelectedProfile.IndexId);
     }
 
-    private async Task SetDefaultServer(string? indexId)
+    public async Task SetDefaultServer(string? indexId)
     {
         if (indexId.IsNullOrEmpty())
         {
@@ -682,7 +1034,7 @@ public class ProfilesViewModel : MyReactiveObject
             return;
         }
 
-        await _updateView?.Invoke(EViewAction.ShareServer, url);
+        await ShareServerInteraction.HandleSafe(url);
     }
 
     private async Task GenGroupAllServer()
@@ -934,6 +1286,7 @@ public class ProfilesViewModel : MyReactiveObject
         {
             return;
         }
+        await ProfileExManager.Instance.SaveTo();
         _dicHeaderSort[colName] = !sortAsc;
         await RefreshServers();
     }
@@ -946,13 +1299,8 @@ public class ProfilesViewModel : MyReactiveObject
     }
 
     //move server
-    private async Task MoveToGroup(bool c)
+    private async Task MoveToGroup()
     {
-        if (!c)
-        {
-            return;
-        }
-
         var lstSelected = await GetProfileItems(true);
         if (lstSelected == null)
         {
@@ -969,19 +1317,15 @@ public class ProfilesViewModel : MyReactiveObject
 
     public async Task MoveServer(EMove eMove)
     {
-        var item = _lstProfile.FirstOrDefault(t => t.IndexId == SelectedProfile.IndexId);
-        if (item is null)
+        var lstProfile = ProfileItems?.Select(t => t.IndexId).ToList() ?? [];
+        var index = lstProfile.IndexOf(SelectedProfile.IndexId);
+        if (index < 0)
         {
             NoticeManager.Instance.Enqueue(ResUI.PleaseSelectServer);
             return;
         }
 
-        var index = _lstProfile.IndexOf(item);
-        if (index < 0)
-        {
-            return;
-        }
-        if (await ConfigHandler.MoveServer(_config, _lstProfile, index, eMove) == 0)
+        if (await ConfigHandler.MoveServer(_config, lstProfile, index, eMove) == 0)
         {
             await RefreshServers();
         }
@@ -992,25 +1336,115 @@ public class ProfilesViewModel : MyReactiveObject
         var targetIndex = ProfileItems.IndexOf(targetItem);
         if (startIndex >= 0 && targetIndex >= 0 && startIndex != targetIndex)
         {
-            if (await ConfigHandler.MoveServer(_config, _lstProfile, startIndex, EMove.Position, targetIndex) == 0)
+            var lstProfile = ProfileItems?.Select(t => t.IndexId).ToList() ?? [];
+            if (await ConfigHandler.MoveServer(_config, lstProfile, startIndex, EMove.Position, targetIndex) == 0)
             {
                 await RefreshServers();
             }
         }
     }
 
-    private async Task AutoRealPingAndSort()
+    private async Task<bool> AutoRealPingAndSort()
     {
         await RefreshServers();
         Logging.SaveLog($"Automatic subscription workflow is starting a real latency test. Subscription={_config.SubIndexId}, Nodes={ProfileItems?.Count ?? 0}.");
-        await ServerSpeedtest(ESpeedActionType.Realping, sortAfterComplete: true, testAll: true);
+        return await ServerSpeedtest(ESpeedActionType.Realping, sortAfterComplete: true, testAll: true);
     }
 
-    private async Task SortDelayAndSetFirstServer()
+    public async Task<SubscriptionLatencyTestResult> TestAndSortSubscriptions(IReadOnlyCollection<string> subscriptionIds)
+    {
+        var ids = subscriptionIds
+            .Where(id => id.IsNotEmpty())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var profiles = new List<ProfileItem>();
+        foreach (var id in ids)
+        {
+            var items = await AppManager.Instance.ProfileItems(id) ?? [];
+            profiles.AddRange(items.Where(IsSpeedtestCandidate));
+        }
+
+        Logging.SaveLog($"Subscription real latency workflow started. Subscriptions={ids.Count}, Nodes={profiles.Count}.");
+        var delays = await MeasureRealDelays(profiles, showResults: true);
+
+        foreach (var id in ids)
+        {
+            await ConfigHandler.SortServers(_config, id, nameof(EServerColName.DelayVal), true);
+        }
+        await ProfileExManager.Instance.SaveTo();
+
+        var result = await ReadSubscriptionLatencyResult(ids, profiles.Count, delays);
+        AppEvents.ProfilesRefreshRequested.Publish();
+        Logging.SaveLog($"Subscription real latency workflow completed. Tested={profiles.Count}, Best={result.BestProfile?.IndexId ?? Global.None}, Delay={result.BestProfile?.Delay ?? -1}.");
+        return result;
+    }
+
+    internal static async Task<SubscriptionLatencyTestResult> ReadSubscriptionLatencyResult(
+        IReadOnlyList<string> ids, int tested, IReadOnlyDictionary<string, int> delays)
+    {
+        var available = new HashSet<string>(StringComparer.Ordinal);
+        ProfileItemModel? best = null;
+        foreach (var id in ids)
+        {
+            var models = await AppManager.Instance.ProfileModels(id, "") ?? [];
+            foreach (var model in models)
+            {
+                if (!delays.TryGetValue(model.IndexId, out var delay) || delay <= 0)
+                {
+                    continue;
+                }
+                available.Add(id);
+                if (best is null || delay < best.Delay)
+                {
+                    model.Delay = delay;
+                    best = model;
+                }
+            }
+        }
+        return new SubscriptionLatencyTestResult(ids, tested, best, available);
+    }
+
+    internal async Task<List<string>> TestLocalAlternatives(string? activeId)
+    {
+        var profiles = await AppManager.Instance.ProfileItems(string.Empty) ?? [];
+        var candidates = profiles.Where(item => item.IndexId != activeId && IsSpeedtestCandidate(item)).ToList();
+        var delays = await MeasureRealDelays(candidates);
+        AppEvents.ProfilesRefreshRequested.Publish();
+        return LatencySortHelper.ReachableNodeIds(delays);
+    }
+
+    private async Task<IReadOnlyDictionary<string, int>> MeasureRealDelays(List<ProfileItem> candidates, bool showResults = false)
+    {
+        var delays = new ConcurrentDictionary<string, int>();
+        if (candidates.Count == 0)
+        {
+            return delays;
+        }
+
+        var speedtest = new SpeedtestService(_config, result =>
+        {
+            if (result.IndexId is { Length: > 0 } id && int.TryParse(result.Delay, out var delay))
+            {
+                delays[id] = delay;
+            }
+            return showResults ? DispatchSpeedTestResult(result) : Task.CompletedTask;
+        });
+        await speedtest.RunOnceAsync(ESpeedActionType.Realping, candidates, displayCoreLog: false);
+        return delays;
+    }
+
+    private static bool IsSpeedtestCandidate(ProfileItem item)
+    {
+        return item.IndexId.IsNotEmpty()
+            && item.ConfigType != EConfigType.Custom
+            && (item.ConfigType.IsComplexType() || item.Port > 0);
+    }
+
+    private async Task<bool> SortDelayAndSetFirstServer()
     {
         var activeIndexId = _config.IndexId;
         var keepCurrentServer = await AppManager.Instance.GetProfileItem(activeIndexId) is not null
-            && _config.SystemProxyItem.SysProxyType == ESysProxyType.ForcedChange;
+            && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config);
 
         await SortServer(nameof(EServerColName.DelayVal), true);
         Logging.SaveLog($"Automatic subscription latency test completed and nodes were sorted in ascending order. Subscription={_config.SubIndexId}.");
@@ -1018,46 +1452,28 @@ public class ProfilesViewModel : MyReactiveObject
         if (keepCurrentServer
             && _config.IndexId == activeIndexId
             && await AppManager.Instance.GetProfileItem(activeIndexId) is not null
-            && _config.SystemProxyItem.SysProxyType == ESysProxyType.ForcedChange)
+            && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config))
         {
             Logging.SaveLog($"Keeping the current active server because automatic system proxy is already enabled. Server={activeIndexId}.");
-            return;
+            return _activateServer is not null && await _activateServer(activeIndexId);
         }
 
         var lstModel = await GetProfileItemsEx(_config.SubIndexId, string.Empty);
         var first = lstModel?.FirstOrDefault(t => t.IndexId.IsNotEmpty()
             && t.ConfigType != EConfigType.Custom
             && (t.ConfigType.IsComplexType() || t.Port > 0)
-            && t.Delay >= 0);
+            && t.Delay > 0);
 
         if (first?.IndexId.IsNotEmpty() == true)
         {
             Logging.SaveLog($"Selecting the lowest-latency available server. Server={first.IndexId}, Delay={first.Delay} ms.");
-            await SetDefaultServerAndEnableAutoProxy(first.IndexId);
-            return;
+            return _activateServer is not null && await _activateServer(first.IndexId);
         }
 
         const string message = "延迟测试没有找到可用节点，未切换活动节点，也未启用自动系统代理。";
         NoticeManager.Instance.Enqueue(message);
         Logging.SaveLog(message);
-    }
-
-    private async Task SetDefaultServerAndEnableAutoProxy(string indexId)
-    {
-        var item = await AppManager.Instance.GetProfileItem(indexId);
-        if (item is null)
-        {
-            NoticeManager.Instance.Enqueue(ResUI.PleaseSelectServer);
-            return;
-        }
-
-        _config.IndexId = indexId;
-        await ConfigHandler.SaveConfig(_config);
-        Logging.SaveLog($"Automatic speed test selected active server {indexId} and requested automatic system proxy.");
-
-        await RefreshServers();
-        Reload();
-        AppEvents.SysProxyChangeRequested.Publish(ESysProxyType.ForcedChange);
+        return false;
     }
 
     private async Task CleanupCloudflareBestNodesSortAndSetFirstServer(IReadOnlyList<ProfileItem> testedProfiles)
@@ -1123,17 +1539,13 @@ public class ProfilesViewModel : MyReactiveObject
 
     private SpeedtestService GetSpeedtestService()
     {
-        _speedtestService ??= new SpeedtestService(_config, async (SpeedTestResult result) =>
-        {
-            RxSchedulers.MainThreadScheduler.Schedule(result, (scheduler, result) =>
-            {
-                _ = SetSpeedTestResult(result);
-                return Disposable.Empty;
-            });
-            await Task.CompletedTask;
-        });
+        return _speedtestService ??= new SpeedtestService(_config, DispatchSpeedTestResult);
+    }
 
-        return _speedtestService;
+    private Task DispatchSpeedTestResult(SpeedTestResult result)
+    {
+        RxSchedulers.MainThreadScheduler.Schedule(() => { _ = SetSpeedTestResult(result); });
+        return Task.CompletedTask;
     }
 
     private async Task RunSpeedtestOnce(ESpeedActionType actionType, List<ProfileItem> selecteds, Func<Task>? completedFunc = null, bool displayCoreLog = true)
@@ -1146,7 +1558,7 @@ public class ProfilesViewModel : MyReactiveObject
         await GetSpeedtestService().RunOnceAsync(actionType, selecteds, completedFunc, displayCoreLog);
     }
 
-    public async Task ServerSpeedtest(ESpeedActionType actionType, bool sortAfterComplete = false, bool testAll = false)
+    public async Task<bool> ServerSpeedtest(ESpeedActionType actionType, bool sortAfterComplete = false, bool testAll = false)
     {
         List<ProfileItem>? lstSelected;
         if (actionType == ESpeedActionType.FastRealping)
@@ -1166,13 +1578,11 @@ public class ProfilesViewModel : MyReactiveObject
 
         if (lstSelected is null || lstSelected.Count <= 0)
         {
-            return;
+            return false;
         }
 
-        Func<Task>? completedFunc = sortAfterComplete
-            ? SortDelayAndSetFirstServer
-            : null;
-        GetSpeedtestService().RunLoop(actionType, lstSelected, completedFunc);
+        await GetSpeedtestService().RunLoop(actionType, lstSelected);
+        return !sortAfterComplete || await SortDelayAndSetFirstServer();
     }
 
     public void ServerSpeedtestStop()
@@ -1204,13 +1614,13 @@ public class ProfilesViewModel : MyReactiveObject
             }
             else
             {
-                await _updateView?.Invoke(EViewAction.SetClipboardData, result.Data);
+                await SetClipboardDataInteraction.HandleSafe((string)result.Data);
                 NoticeManager.Instance.SendMessage(ResUI.OperationSuccess);
             }
         }
         else
         {
-            await _updateView?.Invoke(EViewAction.SaveFileDialog, item);
+            await SaveFileDialogInteraction.HandleSafe(item);
         }
     }
 
@@ -1259,11 +1669,11 @@ public class ProfilesViewModel : MyReactiveObject
         {
             if (blEncode)
             {
-                await _updateView?.Invoke(EViewAction.SetClipboardData, Utils.Base64Encode(sb.ToString()));
+                await SetClipboardDataInteraction.HandleSafe(Utils.Base64Encode(sb.ToString()));
             }
             else
             {
-                await _updateView?.Invoke(EViewAction.SetClipboardData, sb.ToString());
+                await SetClipboardDataInteraction.HandleSafe(sb.ToString());
             }
             NoticeManager.Instance.SendMessage(ResUI.BatchExportURLSuccessfully);
         }
@@ -1286,7 +1696,7 @@ public class ProfilesViewModel : MyReactiveObject
 
         if (!result.IsNullOrEmpty())
         {
-            await _updateView?.Invoke(EViewAction.SetClipboardData, result);
+            await SetClipboardDataInteraction.HandleSafe(result);
             NoticeManager.Instance.SendMessage(ResUI.BatchExportURLSuccessfully);
         }
         else
@@ -1304,6 +1714,11 @@ public class ProfilesViewModel : MyReactiveObject
         await EditSubAsync(true);
     }
 
+    public async Task EditCurrentSubscription()
+    {
+        await EditSubAsync(false);
+    }
+
     private async Task EditSubAsync(bool blNew)
     {
         SubItem item;
@@ -1319,14 +1734,15 @@ public class ProfilesViewModel : MyReactiveObject
                 return;
             }
         }
-        if (await _updateView?.Invoke(EViewAction.SubEditWindow, item) == true)
+        var subEditViewModel = new SubEditViewModel(item);
+        if (await AppManager.Instance.WindowDialog.ShowDialogAsync(subEditViewModel) == true)
         {
             if (blNew && item.Id.IsNotEmpty())
             {
                 _config.SubIndexId = item.Id;
             }
             await RefreshSubscriptions();
-            await SubSelectedChangedAsync(true);
+            await SubSelectedChangedAsync();
             if (blNew && item.Id.IsNotEmpty() && item.Url.IsNotEmpty())
             {
                 AppEvents.CurrentSubscriptionUpdateRequested.Publish(item.Id);
@@ -1342,14 +1758,14 @@ public class ProfilesViewModel : MyReactiveObject
             return;
         }
 
-        if (await _updateView?.Invoke(EViewAction.ShowYesNo, null) == false)
+        if (await ShowYesNoInteraction.HandleSafe(ResUI.RemoveServer) == false)
         {
             return;
         }
         await ConfigHandler.DeleteSubItem(_config, item.Id);
 
         await RefreshSubscriptions();
-        await SubSelectedChangedAsync(true);
+        await SubSelectedChangedAsync();
     }
 
     #endregion Subscription

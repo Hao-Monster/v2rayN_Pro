@@ -34,13 +34,13 @@
             Orientation="Horizontal">
             <Button
                 x:Name="btnSave"
-                Width="100"
+                MinWidth="100"
                 Content="{x:Static resx:ResUI.TbConfirm}"
                 IsDefault="True"
                 Style="{StaticResource DefButton}" />
             <Button
                 x:Name="btnCancel"
-                Width="100"
+                MinWidth="100"
                 Margin="{StaticResource MarginLeftRight8}"
                 Content="{x:Static resx:ResUI.TbCancel}"
                 IsCancel="true"
@@ -53,6 +53,8 @@
 
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -194,7 +196,8 @@
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Style="{StaticResource ToolbarTextBlock}"
-                        Text="{x:Static resx:ResUI.LvAutoUpdateInterval}" />
+                        Text="{x:Static resx:ResUI.LvAutoUpdateInterval}"
+                        TextWrapping="Wrap" />
                 </DockPanel>
 
                 <TextBlock
@@ -257,13 +260,35 @@
                     Grid.Row="8"
                     Grid.Column="0"
                     Margin="{StaticResource Margin4}"
+                    VerticalAlignment="Top"
+                    Text="{x:Static resx:ResUI.LvRequestHeaders}" />
+                <StackPanel Grid.Row="8" Grid.Column="1">
+                    <TextBox
+                        x:Name="txtRequestHeaders"
+                        Margin="{StaticResource Margin4}"
+                        AcceptsReturn="True"
+                        MinLines="4"
+                        MaxLines="8"
+                        Style="{StaticResource MyOutlinedTextBox}"
+                        TextWrapping="Wrap"
+                        VerticalScrollBarVisibility="Auto" />
+                    <TextBlock
+                        Margin="{StaticResource Margin4}"
+                        Text="{x:Static resx:ResUI.SubRequestHeadersTips}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <TextBlock
+                    Grid.Row="9"
+                    Grid.Column="0"
+                    Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
                     Style="{StaticResource ToolbarTextBlock}"
                     Text="{x:Static resx:ResUI.LvSort}"
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
                 <TextBox
                     x:Name="txtSort"
-                    Grid.Row="8"
+                    Grid.Row="9"
                     Grid.Column="1"
                     Width="100"
                     Margin="{StaticResource Margin4}"
@@ -274,7 +299,7 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
 
                 <TextBlock
-                    Grid.Row="9"
+                    Grid.Row="10"
                     Grid.Column="0"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
@@ -283,26 +308,27 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
                 <TextBox
                     x:Name="txtPrevProfile"
-                    Grid.Row="9"
+                    Grid.Row="10"
                     Grid.Column="1"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
                     materialDesign:HintAssist.Hint="{x:Static resx:ResUI.LvPrevProfileTip}"
                     AcceptsReturn="True"
                     Style="{StaticResource MyOutlinedTextBox}"
-                    Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
+                    Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}"
+                    ToolTip="{x:Static resx:ResUI.LvPrevProfileTip}" />
                 <Button
-                    Grid.Row="9"
+                    x:Name="btnSelectPrevProfile"
+                    Grid.Row="10"
                     Grid.Column="2"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
-                    Click="BtnSelectPrevProfile_Click"
                     Content="{x:Static resx:ResUI.TbSelectProfile}"
                     Style="{StaticResource DefButton}"
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
 
                 <TextBlock
-                    Grid.Row="10"
+                    Grid.Row="11"
                     Grid.Column="0"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
@@ -311,26 +337,42 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
                 <TextBox
                     x:Name="txtNextProfile"
-                    Grid.Row="10"
+                    Grid.Row="11"
                     Grid.Column="1"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
                     materialDesign:HintAssist.Hint="{x:Static resx:ResUI.LvPrevProfileTip}"
                     AcceptsReturn="True"
                     Style="{StaticResource MyOutlinedTextBox}"
-                    Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
+                    Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}"
+                    ToolTip="{x:Static resx:ResUI.LvPrevProfileTip}" />
                 <Button
-                    Grid.Row="10"
+                    x:Name="btnSelectNextProfile"
+                    Grid.Row="11"
                     Grid.Column="2"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
-                    Click="BtnSelectNextProfile_Click"
                     Content="{x:Static resx:ResUI.TbSelectProfile}"
                     Style="{StaticResource DefButton}"
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
 
                 <TextBlock
-                    Grid.Row="11"
+                    Grid.Row="12"
+                    Grid.Column="0"
+                    Margin="{StaticResource Margin4}"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource ToolbarTextBlock}"
+                    Text="{x:Static resx:ResUI.LvCustomCoreType}" />
+                <ComboBox
+                    x:Name="cmbCustomCoreType"
+                    Grid.Row="12"
+                    Grid.Column="1"
+                    Margin="{StaticResource Margin4}"
+                    MaxDropDownHeight="1000"
+                    Style="{StaticResource MyOutlinedTextComboBox}" />
+
+                <TextBlock
+                    Grid.Row="13"
                     Grid.Column="0"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
@@ -339,7 +381,7 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
                 <TextBox
                     x:Name="txtPreSocksPort"
-                    Grid.Row="11"
+                    Grid.Row="13"
                     Grid.Column="1"
                     Margin="{StaticResource Margin4}"
                     HorizontalAlignment="Left"
@@ -350,7 +392,7 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
 
                 <TextBlock
-                    Grid.Row="12"
+                    Grid.Row="14"
                     Grid.Column="0"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"
@@ -359,7 +401,7 @@
                     Visibility="{Binding ElementName=togAdvanced, Path=IsChecked, Converter={StaticResource BoolToVisConverter}}" />
                 <TextBox
                     x:Name="txtMemo"
-                    Grid.Row="12"
+                    Grid.Row="14"
                     Grid.Column="1"
                     Margin="{StaticResource Margin4}"
                     VerticalAlignment="Center"

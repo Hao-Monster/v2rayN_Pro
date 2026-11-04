@@ -17,8 +17,8 @@ on:
     inputs:
       version:
         description: Custom version without the leading v
-        required: true
-        default: 7.23.4-custom.1
+        required: false
+        default: ''
         type: string
 
 permissions:

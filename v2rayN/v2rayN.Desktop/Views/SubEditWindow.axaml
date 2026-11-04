@@ -2,6 +2,9 @@
     x:Class="v2rayN.Desktop.Views.SubEditWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:dd="clr-namespace:v2rayN.Desktop.DesignData"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:resx="clr-namespace:ServiceLib.Resx;assembly=ServiceLib"
     xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
     Title="{x:Static resx:ResUI.menuSubSetting}"
@@ -9,8 +12,10 @@
     Height="250"
     MinHeight="250"
     x:DataType="vms:SubEditViewModel"
+    Design.DataContext="{x:Static dd:DesignData.SubEdit}"
     ShowInTaskbar="False"
-    WindowStartupLocation="CenterOwner">
+    WindowStartupLocation="CenterOwner"
+    mc:Ignorable="d">
     <DockPanel Margin="12">
         <StackPanel
             Margin="4,16,4,0"
@@ -34,7 +39,7 @@
                     VerticalAlignment="Center"
                     AcceptsReturn="True"
                     TextWrapping="Wrap"
-                    Watermark="粘贴订阅链接" />
+                    PlaceholderText="粘贴订阅链接" />
                 <Button Grid.Row="1" Grid.Column="2" Margin="4" Classes="IconButton" ToolTip.Tip="更多订阅链接">
                     <Button.Content>
                         <PathIcon Data="{StaticResource SemiIconMore}" />
@@ -51,7 +56,7 @@
                                     AcceptsReturn="True"
                                     Classes="TextArea"
                                     TextWrapping="Wrap"
-                                    Watermark="每行粘贴一个订阅链接" />
+                                    PlaceholderText="每行粘贴一个订阅链接" />
                             </StackPanel>
                         </Flyout>
                     </Button.Flyout>
@@ -63,10 +68,10 @@
                     Width="38"
                     Height="34"
                     Margin="4"
-                    Checked="TogAdvanced_Checked"
                     Content="∨"
+                    IsCheckedChanged="TogAdvanced_IsCheckedChanged"
                     ToolTip.Tip="展开更多设置"
-                    Unchecked="TogAdvanced_Unchecked" />
+                    />
 
                 <Grid
                     x:Name="pnlAdvanced"
@@ -75,7 +80,7 @@
                     Grid.ColumnSpan="4"
                     IsVisible="False"
                     ColumnDefinitions="110,*,Auto"
-                    RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                    RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                     <TextBlock Grid.Row="0" Margin="4" VerticalAlignment="Center" Text="别名" />
                     <TextBox x:Name="txtRemarks" Grid.Row="0" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
 
@@ -100,17 +105,21 @@
 
                     <TextBlock Grid.Row="6" Margin="4" VerticalAlignment="Center" Text="前置代理配置别名" />
                     <TextBox x:Name="txtPrevProfile" Grid.Row="6" Grid.Column="1" Margin="4" />
-                    <Button Grid.Row="6" Grid.Column="2" Margin="4" Click="BtnSelectPrevProfile_Click" Content="选择配置" />
+                    <Button x:Name="btnSelectPrevProfile" Grid.Row="6" Grid.Column="2" Margin="4" Content="选择配置" />
 
                     <TextBlock Grid.Row="7" Margin="4" VerticalAlignment="Center" Text="落地代理配置别名" />
                     <TextBox x:Name="txtNextProfile" Grid.Row="7" Grid.Column="1" Margin="4" />
-                    <Button Grid.Row="7" Grid.Column="2" Margin="4" Click="BtnSelectNextProfile_Click" Content="选择配置" />
+                    <Button x:Name="btnSelectNextProfile" Grid.Row="7" Grid.Column="2" Margin="4" Content="选择配置" />
 
                     <TextBlock Grid.Row="8" Margin="4" VerticalAlignment="Center" Text="自定义 Socks 端口" />
                     <TextBox x:Name="txtPreSocksPort" Grid.Row="8" Grid.Column="1" Margin="4" />
 
-                    <TextBlock Grid.Row="9" Margin="4" VerticalAlignment="Center" Text="备注" />
-                    <TextBox x:Name="txtMemo" Grid.Row="9" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="9" Margin="4" Text="{x:Static resx:ResUI.LvRequestHeaders}" />
+                    <TextBox x:Name="txtRequestHeaders" Grid.Row="9" Grid.Column="1" Margin="4" AcceptsReturn="True" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="10" Margin="4" VerticalAlignment="Center" Text="备注" />
+                    <TextBox x:Name="txtMemo" Grid.Row="10" Grid.Column="1" Margin="4" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="11" Margin="4" Text="{x:Static resx:ResUI.LvCustomCoreType}" />
+                    <ComboBox x:Name="cmbCustomCoreType" Grid.Row="11" Grid.Column="1" Margin="4" />
                 </Grid>
             </Grid>
         </ScrollViewer>

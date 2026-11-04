@@ -46,6 +46,11 @@ jobs:
           echo "Invalid custom release tag: $tag" >&2
           exit 1
         }
+        git fetch --no-tags origin refs/heads/custom/main
+        [[ "$(git rev-list -n 1 "$tag")" == "$(git rev-parse FETCH_HEAD)" ]] || {
+          echo "Release tag must point at the current custom/main commit." >&2
+          exit 1
+        }
         echo "tag=$tag" >> "$GITHUB_OUTPUT"
         echo "version=$tag" >> "$GITHUB_OUTPUT"
 
@@ -63,7 +68,7 @@ jobs:
       with:
         dotnet-version: 10.0.1xx
     - name: Run tests
-      run: dotnet test ./v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj -c Release
+      run: dotnet test --project ./v2rayN/ServiceLib.Tests -c Release
 
   windows-x64:
     needs: [metadata, test]

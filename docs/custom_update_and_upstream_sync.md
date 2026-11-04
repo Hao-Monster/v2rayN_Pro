@@ -9,7 +9,7 @@
 ## Repository model
 
 - `upstream`: read-only remote for `2dust/v2rayN`.
-- `origin`: `FengHaoyun-MONSTER/v2rayN_Pro`.
+- `origin`: `Hao-Monster/v2rayN_Pro`.
 - `custom/main`: protected, releasable custom branch.
 - `sync/upstream-X.Y.Z-custom.N`: temporary upstream integration branch.
 - `feature/*` and `fix/*`: scoped custom development branches.

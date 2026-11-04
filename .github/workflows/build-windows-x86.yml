@@ -52,7 +52,7 @@ jobs:
           dotnet --list-sdks 2>$null; $LASTEXITCODE=0
 
       - name: Setup .NET 10.0.1xx
-        uses: actions/setup-dotnet@v5.4.0
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.1xx
 
@@ -146,7 +146,7 @@ jobs:
           $xrayTag = "v$xrayVer"
           $singTag = "v$singVer"
 
-          $xrayUrl = "https://github.com/autorepobot/Xray-core/releases/download/$xrayTag/Xray-windows-32.zip"
+          $xrayUrl = "https://github.com/XTLS/Xray-core/releases/download/$xrayTag/Xray-windows-32.zip"
           $singUrl = "https://github.com/SagerNet/sing-box/releases/download/$singTag/sing-box-$singVer-windows-386.zip"
 
           Write-Host "Bundled Xray version: $xrayVer"

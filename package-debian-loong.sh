@@ -13,8 +13,8 @@ PKGROOT="v2rayN-publish"
 PROJECT_HINT="v2rayN.Desktop/v2rayN.Desktop.csproj"
 OUTPUT_DIR="${HOME}/debbuild"
 DOTNET_TFM="net10.0"
-DOTNET_LOONGARCH_VERSION="10.0.109"
-DOTNET_LOONGARCH_TAG="v10.0.109-loongarch64"
+DOTNET_LOONGARCH_VERSION="10.0.111"
+DOTNET_LOONGARCH_TAG="v10.0.111-loongarch64"
 DOTNET_LOONGARCH_BASE="https://github.com/loongson/dotnet/releases/download"
 DOTNET_LOONGARCH_FILE="dotnet-sdk-${DOTNET_LOONGARCH_VERSION}-linux-loongarch64.tar.gz"
 DOTNET_SDK_URL="${DOTNET_LOONGARCH_BASE}/${DOTNET_LOONGARCH_TAG}/${DOTNET_LOONGARCH_FILE}"
@@ -597,8 +597,8 @@ package_binary() {
   write_desktop_file "$stage"
   write_maintainer_scripts "$debian_dir"
 
-  extra_depends="libc6 (>= 2.39), fontconfig (>= 2.15.0), desktop-file-utils (>= 0.26), xdg-utils (>= 1.2.0), coreutils (>= 9.5), bash (>= 5.2.26), libfreetype6 (>= 2.13)"
-
+  extra_depends="libc6 (>= 2.39), fontconfig (>= 2.15.0), desktop-file-utils (>= 0.26), xdg-utils (>= 1.1.3), coreutils (>= 9.4), bash (>= 5.2.21), libfreetype6 (>= 2.13)"
+  
   mkdir -p "$workdir/debian"
   cat > "$workdir/debian/control" <<EOF
 Source: v2rayn

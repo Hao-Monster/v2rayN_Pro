@@ -1,16 +1,16 @@
 using AwesomeAssertions;
 using ServiceLib.Common;
-using Xunit;
+using TUnit.Core;
 
 namespace ServiceLib.Tests.Common;
 
 public class UnixShellResourceTests
 {
-    [Theory]
-    [InlineData(Global.ProxySetOSXShellFileName)]
-    [InlineData(Global.ProxySetLinuxShellFileName)]
-    [InlineData(Global.KillAsSudoOSXShellFileName)]
-    [InlineData(Global.KillAsSudoLinuxShellFileName)]
+    [Test]
+    [Arguments(Global.ProxySetOSXShellFileName)]
+    [Arguments(Global.ProxySetLinuxShellFileName)]
+    [Arguments(Global.KillAsSudoOSXShellFileName)]
+    [Arguments(Global.KillAsSudoLinuxShellFileName)]
     public void EmbeddedShellResource_ShouldContainOnlyLfLineEndings(string resourceName)
     {
         var contents = EmbedUtils.GetEmbedText(resourceName);
@@ -19,7 +19,7 @@ public class UnixShellResourceTests
         contents.Should().NotContain("\r");
     }
 
-    [Fact]
+    [Test]
     public void MacOsSystemProxyScript_ShouldUseAbsoluteNetworkSetupAndReportState()
     {
         var contents = EmbedUtils.GetEmbedText(Global.ProxySetOSXShellFileName);

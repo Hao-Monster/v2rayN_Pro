@@ -1212,7 +1212,7 @@
   <data name="menuModeRule" xml:space="preserve">
     <value>Règle</value>
   </data>
-  <data name="menuProxiesDelaytest" xml:space="preserve">
+  <data name="menuDelaytest" xml:space="preserve">
     <value>Test de latence</value>
   </data>
   <data name="menuProxiesDelaytestPart" xml:space="preserve">
@@ -1453,7 +1453,7 @@
     <value>DNS personnalisé activé ; la configuration de cette page sera ignorée</value>
   </data>
   <data name="TbBlockSVCBHTTPSQueriesTips" xml:space="preserve">
-    <value>Une fois activé, bloque les requêtes ECH et de disponibilité HTTP/3</value>
+    <value>Block ECH and HTTP/3 availability checks when enabled. Always enabled in Xray</value>
   </data>
   <data name="FillCorrectConfigTemplateText" xml:space="preserve">
     <value>Veuillez saisir un modèle de configuration valide</value>
@@ -1492,7 +1492,7 @@
     <value>Choisir une config.</value>
   </data>
   <data name="TbFakeIPTips" xml:space="preserve">
-    <value>Actif globalement par défaut, avec filtre FakeIP intégré ; ne fonctionne que dans sing-box</value>
+    <value>Applies globally by default, and built-in FakeIP filtering is only built into sing-box.</value>
   </data>
   <data name="PleaseAddAtLeastOneServer" xml:space="preserve">
     <value>Veuillez ajouter au moins une configuration</value>

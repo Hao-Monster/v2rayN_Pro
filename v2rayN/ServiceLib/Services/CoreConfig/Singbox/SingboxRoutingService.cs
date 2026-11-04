@@ -10,18 +10,27 @@ public partial class CoreConfigSingboxService
             var simpleDnsItem = context.SimpleDnsItem;
 
             var defaultDomainResolverTag = Global.SingboxDirectDNSTag;
-            var directDnsStrategy = Utils.DomainStrategy4Sbox(simpleDnsItem.Strategy4Freedom);
+            var dialDnsStrategy = Utils.DomainStrategy4Sbox(simpleDnsItem.Strategy4ProxyDial);
 
             var rawDNSItem = context.RawDnsItem;
             if (rawDNSItem is { Enabled: true })
             {
                 defaultDomainResolverTag = Global.SingboxLocalDNSTag;
-                directDnsStrategy = rawDNSItem.DomainStrategy4Freedom.IsNullOrEmpty() ? null : rawDNSItem.DomainStrategy4Freedom;
+                dialDnsStrategy = rawDNSItem.DomainStrategy4Freedom.IsNullOrEmpty() ? null : rawDNSItem.DomainStrategy4Freedom;
+            }
+            else if (!simpleDnsItem.Strategy4Freedom.IsNullOrEmpty())
+            {
+                var directOutbound = _coreConfig.outbounds.FirstOrDefault(o => o.tag == Global.DirectTag);
+                directOutbound?.domain_resolver = new()
+                {
+                    server = defaultDomainResolverTag,
+                    strategy = Utils.DomainStrategy4Sbox(simpleDnsItem.Strategy4Freedom),
+                };
             }
             _coreConfig.route.default_domain_resolver = new()
             {
                 server = defaultDomainResolverTag,
-                strategy = directDnsStrategy
+                strategy = dialDnsStrategy
             };
 
             if (context.IsTunEnabled)
@@ -32,6 +41,28 @@ public partial class CoreConfigSingboxService
                 if (tunRules != null)
                 {
                     _coreConfig.route.rules.AddRange(tunRules);
+                }
+
+                // Traffic addressed to the TUN interface's own addresses must never reach an
+                // outbound. auto_route hijacks the default route, so `direct` writes such a
+                // packet straight back into the TUN, which hands it to the outbound again -
+                // an infinite loop that pins a CPU core. Drop instead of rejecting so no
+                // ICMP unreachable is generated back towards the same addresses.
+                //
+                // Match each address on its own, not the prefix it carries. On Linux sing-tun
+                // registers Inet4Address[0].Addr().Next() with systemd-resolved as a "~." DNS
+                // upstream, and every prefix offered here is a /30 or /126, so carrying the
+                // prefix through would cover that resolver address too and drop every system
+                // name lookup along with the loop.
+                var tunAddresses = _coreConfig.inbounds.FirstOrDefault(i => i.type == "tun")?.address;
+                if (tunAddresses?.Count > 0)
+                {
+                    _coreConfig.route.rules.Add(new()
+                    {
+                        ip_cidr = [.. tunAddresses.Select(ToSingleAddressPrefix)],
+                        action = "reject",
+                        method = "drop",
+                    });
                 }
 
                 var lstDirectExe = BuildRoutingDirectExe();
@@ -126,6 +157,34 @@ public partial class CoreConfigSingboxService
                 }
             }
 
+            if (context.IsTunEnabled && _config.TunModeItem.BlockEncryptedDnsBypass)
+            {
+                _coreConfig.route.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    port = [853],
+                    action = "reject",
+                });
+                _coreConfig.route.rules.Add(new()
+                {
+                    inbound = ["tun"],
+                    port = [443],
+                    ip_cidr = [.. Global.TunEncryptedDnsGuardIps],
+                    action = "reject",
+                });
+                var guardDomains = TunTakeoverPolicy.GetDnsGuardBlockedDomains(context);
+                if (guardDomains.Count > 0)
+                {
+                    _coreConfig.route.rules.Add(new()
+                    {
+                        inbound = ["tun"],
+                        port = [443],
+                        domain_suffix = guardDomains,
+                        action = "reject",
+                    });
+                }
+            }
+
             var hostsDomains = new List<string>();
             if (rawDNSItem is not { Enabled: true })
             {
@@ -213,7 +272,7 @@ public partial class CoreConfigSingboxService
             var resolveRule = new Rule4Sbox
             {
                 action = "resolve",
-                strategy = domainStrategy
+                strategy = domainStrategy,
             };
             if (_config.RoutingBasicItem.DomainStrategy == Global.IPOnDemand)
             {
@@ -257,6 +316,14 @@ public partial class CoreConfigSingboxService
         {
             Logging.SaveLog(_tag, ex);
         }
+    }
+
+    private static string ToSingleAddressPrefix(string address)
+    {
+        var addr = address.Split('/').First();
+        return IPAddress.TryParse(addr, out var ip)
+            ? $"{addr}/{(ip.AddressFamily == AddressFamily.InterNetworkV6 ? 128 : 32)}"
+            : address;
     }
 
     private List<string> BuildRoutingDirectExe()
@@ -549,7 +616,8 @@ public partial class CoreConfigSingboxService
 
         if (node == null
             || (!Global.SingboxSupportConfigType.Contains(node.ConfigType)
-            && !node.ConfigType.IsGroupType()))
+            && !node.ConfigType.IsGroupType()
+            && node.ConfigType is not EConfigType.Outbound))
         {
             return Global.ProxyTag;
         }

@@ -10,6 +10,7 @@ public sealed class AppManager
     private int? _statePort2;
     public static AppManager Instance => _instance.Value;
     public Config Config => _config;
+    public IWindowDialog WindowDialog { get; set; } = null!;
 
     public int StatePort
     {
@@ -151,10 +152,15 @@ public sealed class AppManager
         AppEvents.ShutdownRequested.Publish(byUser);
     }
 
-    public async Task RebootAsAdmin()
+    public async Task<bool> RebootAsAdmin()
     {
-        ProcUtils.RebootAsAdmin();
+        if (!ProcUtils.RebootAsAdmin())
+        {
+            return false;
+        }
+
         await AppManager.Instance.AppExitAsync(true);
+        return true;
     }
 
     #endregion App
@@ -662,7 +668,7 @@ public sealed class AppManager
         return Global.SsSecuritiesInSingbox;
     }
 
-    public ECoreType GetCoreType(ProfileItem profileItem, EConfigType eConfigType)
+    public ECoreType GetCoreType(ProfileItem? profileItem, EConfigType eConfigType)
     {
         if (profileItem?.CoreType != null)
         {

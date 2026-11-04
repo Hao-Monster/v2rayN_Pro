@@ -1,7 +1,10 @@
 tun:
   enable: true
-  stack: gvisor
+  stack: mixed
+  mtu: 1500
   dns-hijack:
-  - 0.0.0.0:53
+  - any:53
+  - tcp://any:53
   auto-route: true
+  strict-route: true
   auto-detect-interface: true

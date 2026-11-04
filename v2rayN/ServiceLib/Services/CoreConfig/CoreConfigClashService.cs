@@ -1,9 +1,14 @@
+using YamlDotNet.Core;
+using YamlDotNet.RepresentationModel;
+
 namespace ServiceLib.Services.CoreConfig;
 
 /// <summary>
-/// Core configuration file processing class
+/// Core configuration file processing class.
+/// The TUN state is taken as a snapshot so the generated config always agrees
+/// with the launch elevation decision (see CoreManager.ShouldRunAsSudo).
 /// </summary>
-public class CoreConfigClashService(Config config)
+public class CoreConfigClashService(Config config, bool isTunEnabled)
 {
     private static readonly string _tag = "CoreConfigClashService";
 
@@ -86,31 +91,60 @@ public class CoreConfigClashService(Config config)
             }
 
             //ipv6
-            fileContent["ipv6"] = config.ClashUIItem.EnableIPv6;
+            fileContent["ipv6"] = config.ClashUIItem.EnableIPv6 || (isTunEnabled && config.TunModeItem.EnableIPv6Address);
 
             //mode
-            if (!fileContent.ContainsKey("mode"))
-            {
-                fileContent["mode"] = nameof(ERuleMode.Rule).ToLower();
-            }
-            else
-            {
-                if (config.ClashUIItem.RuleMode != ERuleMode.Unchanged)
-                {
-                    fileContent["mode"] = config.ClashUIItem.RuleMode.ToString().ToLower();
-                }
-            }
+            fileContent.TryAdd("mode", nameof(ERuleMode.Rule));
 
             //enable tun mode
-            if (config.TunModeItem.EnableTun)
+            if (isTunEnabled)
             {
                 var tun = EmbedUtils.GetEmbedText(Global.ClashTunYaml);
                 if (tun.IsNotEmpty())
                 {
                     var tunContent = YamlUtils.FromYaml<Dictionary<string, object>>(tun);
-                    if (tunContent != null)
+                    if (tunContent != null && tunContent.TryGetValue("tun", out var tunObj))
                     {
-                        fileContent["tun"] = tunContent["tun"];
+                        if (tunObj is Dictionary<object, object> tunDict)
+                        {
+                            tunDict["stack"] = config.TunModeItem.Stack.NullIfEmpty() ?? Global.DefaultTunStack;
+                            tunDict["mtu"] = config.TunModeItem.Mtu > 0 ? config.TunModeItem.Mtu : Global.DefaultTunMtu;
+                            tunDict["auto-route"] = config.TunModeItem.AutoRoute;
+                            tunDict["strict-route"] = config.TunModeItem.StrictRoute;
+
+                            if (!config.TunModeItem.IPv4Address.IsNullOrEmpty())
+                            {
+                                tunDict["inet4-address"] = new List<string> { config.TunModeItem.IPv4Address };
+                            }
+
+                            if (config.TunModeItem.EnableIPv6Address)
+                            {
+                                var ipv6Address = config.TunModeItem.IPv6Address.NullIfEmpty()
+                                    ?? Global.TunIPv6Address.First();
+                                tunDict["inet6-address"] = new List<string> { ipv6Address };
+                            }
+                            else
+                            {
+                                tunDict.Remove("inet6-address");
+                            }
+
+                            if (config.TunModeItem.RouteExcludeAddress is { Count: > 0 })
+                            {
+                                var validRouteExcludes = new List<string>();
+                                foreach (var cidr in config.TunModeItem.RouteExcludeAddress)
+                                {
+                                    if (IPNetwork2.TryParse(cidr, out _))
+                                    {
+                                        validRouteExcludes.Add(cidr);
+                                    }
+                                }
+                                if (validRouteExcludes.Count > 0)
+                                {
+                                    tunDict["route-exclude-address"] = validRouteExcludes;
+                                }
+                            }
+                        }
+                        fileContent["tun"] = tunObj;
                     }
                 }
             }
@@ -125,7 +159,27 @@ public class CoreConfigClashService(Config config)
                 Logging.SaveLog($"{_tag}-Mixin", ex);
             }
 
+            // Mihomo parses plain values such as 815458e4 as floats, so quote REALITY short IDs.
+            var originalRealityShortIds = new List<(Dictionary<object, object> RealityOptions, string ShortId)>();
+            if (fileContent.GetValueOrDefault("proxies") is List<object> proxies)
+            {
+                foreach (var proxy in proxies.OfType<Dictionary<object, object>>())
+                {
+                    if (proxy.GetValueOrDefault("reality-opts") is Dictionary<object, object> realityOptions
+                        && realityOptions.GetValueOrDefault("short-id") is string shortId
+                        && !shortId.StartsWith(tagYamlStr2, StringComparison.Ordinal))
+                    {
+                        originalRealityShortIds.Add((realityOptions, shortId));
+                        realityOptions["short-id"] = new YamlScalarNode(shortId) { Style = ScalarStyle.DoubleQuoted };
+                    }
+                }
+            }
+
             var txtFileNew = YamlUtils.ToYaml(fileContent).Replace(tagYamlStr2, tagYamlStr3);
+            foreach (var (realityOptions, shortId) in originalRealityShortIds)
+            {
+                realityOptions["short-id"] = shortId;
+            }
             await File.WriteAllTextAsync(fileName, txtFileNew);
             //check again
             if (!File.Exists(fileName))
@@ -133,8 +187,6 @@ public class CoreConfigClashService(Config config)
                 ret.Msg = ResUI.FailedReadConfiguration + "2";
                 return ret;
             }
-
-            ClashApiManager.Instance.ProfileContent = fileContent;
 
             ret.Msg = string.Format(ResUI.SuccessfulConfiguration, $"{node.GetSummary()}");
             ret.Success = true;
@@ -171,7 +223,7 @@ public class CoreConfigClashService(Config config)
         }
         foreach (var item in mixinContent)
         {
-            if (!config.TunModeItem.EnableTun && item.Key == "tun")
+            if (!isTunEnabled && item.Key == "tun")
             {
                 continue;
             }
