@@ -34,6 +34,34 @@ public partial class CoreConfigV2rayService
                     port = "53",
                     outboundTag = Global.DnsOutboundTag,
                 });
+
+                if (_config.TunModeItem.BlockEncryptedDnsBypass)
+                {
+                    _coreConfig.routing.rules.Add(new()
+                    {
+                        inboundTag = ["tun"],
+                        port = "853",
+                        outboundTag = Global.BlockTag,
+                    });
+                    _coreConfig.routing.rules.Add(new()
+                    {
+                        inboundTag = ["tun"],
+                        port = "443",
+                        ip = [.. Global.TunEncryptedDnsGuardIps],
+                        outboundTag = Global.BlockTag,
+                    });
+                    var guardDomains = TunTakeoverPolicy.GetDnsGuardBlockedDomains(context);
+                    if (guardDomains.Count > 0)
+                    {
+                        _coreConfig.routing.rules.Add(new()
+                        {
+                            inboundTag = ["tun"],
+                            port = "443",
+                            domain = [.. guardDomains.Select(d => $"domain:{d}")],
+                            outboundTag = Global.BlockTag,
+                        });
+                    }
+                }
             }
             if (_coreConfig.routing?.rules != null)
             {

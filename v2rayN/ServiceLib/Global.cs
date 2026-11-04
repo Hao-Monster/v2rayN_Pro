@@ -754,10 +754,20 @@ public class Global
         "reply",
     ];
 
+    public const int CurrentTunTakeoverSchemaVersion = 1;
+    public const int DefaultTunMtu = 1500;
+    public const string DefaultTunStack = "mixed";
+
     public static readonly List<string> FakeIPRanges =
     [
         "198.18.0.0/15",
         "11.0.0.0/8",
+    ];
+
+    public static readonly List<string> FakeIPv6Ranges =
+    [
+        "fc00::/18",
+        "fd00:198:18::/48",
     ];
 
     public static readonly List<string> RootCertProviders =
@@ -781,8 +791,11 @@ public class Global
 
     // Prefixes must leave room for a peer address (max /126); the sing-box system
     // stack derives a gateway from the first prefix and rejects single-address prefixes.
+    // The default fdfe:dcba:9876::1/126 sits outside fc00::/18 so TUN interface addresses
+    // never collide with the standard FakeIPv6 pool.
     public static readonly IReadOnlyList<string> TunIPv6Address =
     [
+        "fdfe:dcba:9876::1/126",
         "fc00::172:18:0:1/126",
         "fc00::172:31:0:1/126",
         "fc00::172:20:0:1/126",
@@ -791,5 +804,79 @@ public class Global
         "fc00::10:10:14:1/126",
         "fc00::10:1:0:1/126",
         "fc00::10:0:0:1/126",
+    ];
+
+    // Covers all 35 domestic public DNS IPs from custom_routing_white plus major global DoH IPs
+    // so app-level DoH over port 443 cannot bypass port-53 hijack-dns / FakeIP in TUN mode.
+    public static readonly IReadOnlyList<string> TunEncryptedDnsGuardIps =
+    [
+        "223.5.5.5/32",
+        "223.6.6.6/32",
+        "2400:3200::1/128",
+        "2400:3200:baba::1/128",
+        "119.29.29.29/32",
+        "1.12.12.12/32",
+        "120.53.53.53/32",
+        "2402:4e00::/128",
+        "2402:4e00:1::/128",
+        "180.76.76.76/32",
+        "2400:da00::6666/128",
+        "114.114.114.114/32",
+        "114.114.115.115/32",
+        "114.114.114.119/32",
+        "114.114.115.119/32",
+        "114.114.114.110/32",
+        "114.114.115.110/32",
+        "180.184.1.1/32",
+        "180.184.2.2/32",
+        "101.226.4.6/32",
+        "218.30.118.6/32",
+        "123.125.81.6/32",
+        "140.207.198.6/32",
+        "1.2.4.8/32",
+        "210.2.4.8/32",
+        "52.80.66.66/32",
+        "117.50.22.22/32",
+        "2400:7fc0:849e:200::4/128",
+        "2404:c2c0:85d8:901::4/128",
+        "117.50.10.10/32",
+        "52.80.52.52/32",
+        "2400:7fc0:849e:200::8/128",
+        "2404:c2c0:85d8:901::8/128",
+        "117.50.60.30/32",
+        "52.80.60.30/32",
+        "1.1.1.1/32",
+        "1.0.0.1/32",
+        "2606:4700:4700::1111/128",
+        "2606:4700:4700::1001/128",
+        "8.8.8.8/32",
+        "8.8.4.4/32",
+        "2001:4860:4860::8888/128",
+        "2001:4860:4860::8844/128",
+        "9.9.9.9/32",
+        "149.112.112.112/32",
+        "2620:fe::fe/128",
+        "2620:fe::9/128",
+        "94.140.14.14/32",
+        "94.140.15.15/32",
+        "208.67.222.222/32",
+        "208.67.220.220/32",
+    ];
+
+    public static readonly IReadOnlyList<string> TunEncryptedDnsGuardDomains =
+    [
+        "resolver.arpa",
+        "dns.alidns.com",
+        "doh.pub",
+        "dot.pub",
+        "doh.360.cn",
+        "dot.360.cn",
+        "doh.onedns.net",
+        "dns.google",
+        "cloudflare-dns.com",
+        "one.one.one.one",
+        "dns.quad9.net",
+        "dns.adguard-dns.com",
+        "doh.opendns.com",
     ];
 }

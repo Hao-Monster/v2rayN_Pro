@@ -87,13 +87,7 @@ public static class ConfigHandler
             PermitWithoutStream = false,
             InitialWindowsSize = 0,
         };
-        config.TunModeItem ??= new TunModeItem
-        {
-            EnableTun = false,
-            Mtu = 9000,
-            IcmpRouting = Global.TunIcmpRoutingPolicies.First(),
-            EnableLegacyProtect = true,
-        };
+        TunTakeoverPolicy.ApplyTunConfigMigration(config);
         config.GuiItem ??= new();
         if (!Global.RootCertProviders.Contains(config.GuiItem.RootCertProvider))
         {
@@ -117,6 +111,7 @@ public static class ConfigHandler
         config.SimpleDNSItem ??= InitBuiltinSimpleDNS();
         config.SimpleDNSItem.BlockAAAAQuery ??= false;
         config.SimpleDNSItem.FakeIPRange ??= Global.FakeIPRanges.FirstOrDefault();
+        config.SimpleDNSItem.FakeIPv6Range ??= Global.FakeIPv6Ranges.FirstOrDefault();
         config.SimpleDNSItem.GlobalFakeIp ??= true;
         config.SimpleDNSItem.BootstrapDNS ??= Global.DomainPureIPDNSAddress.FirstOrDefault();
         config.SimpleDNSItem.ServeStale ??= false;

@@ -108,6 +108,10 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(async _ => await RefreshRuntimeStatus());
         StatusBarViewModel.Instance
+            .WhenAnyValue(x => x.EnableTun)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
+            .Subscribe(async _ => await RefreshRuntimeStatus());
+        StatusBarViewModel.Instance
             .WhenAnyValue(x => x.SelectedServer)
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(async _ => await RefreshRuntimeStatus());
@@ -210,13 +214,7 @@ public partial class SubscriptionInfoViewModel : MyReactiveObject
             _ => "未测速"
         };
 
-        SystemProxyStatus = _config.SystemProxyItem.SysProxyType switch
-        {
-            ESysProxyType.ForcedChange => "自动配置系统代理",
-            ESysProxyType.Pac => "PAC 模式",
-            ESysProxyType.Unchanged => "保持系统设置",
-            _ => "未开启"
-        };
+        SystemProxyStatus = TunTakeoverPolicy.FormatRuntimeProxyStatus(_config);
     }
 
     private static string NormalizeSupportUrl(string? value)

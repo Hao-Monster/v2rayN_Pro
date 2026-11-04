@@ -129,7 +129,7 @@ public partial class CoreConfigSingboxService
                     }
                 case EConfigType.Shadowsocks:
                     {
-                        outbound.method = AppManager.Instance.GetShadowsocksSecurities(_node).Contains(protocolExtra.SsMethod)
+                        outbound.method = Global.SsSecuritiesInSingbox.Contains(protocolExtra.SsMethod)
                             ? protocolExtra.SsMethod : Global.None;
                         outbound.password = _node.Password;
                         outbound.udp_over_tcp = protocolExtra.Uot == true ? true : null;

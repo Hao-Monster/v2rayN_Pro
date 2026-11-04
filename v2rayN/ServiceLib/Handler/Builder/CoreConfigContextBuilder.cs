@@ -34,6 +34,13 @@ public class CoreConfigContextBuilder
     public static async Task<CoreConfigContextBuilderResult> Build(Config config, ProfileItem node)
     {
         var runCoreType = AppManager.Instance.GetCoreType(node, node.ConfigType);
+        if (runCoreType != ECoreType.sing_box
+            && node.CoreType is null
+            && config.TunModeItem is { EnableTun: true, PreferSingboxInTun: true }
+            && Global.SingboxOnlyConfigType.Contains(node.ConfigType))
+        {
+            runCoreType = ECoreType.sing_box;
+        }
         var coreType = runCoreType == ECoreType.sing_box ? ECoreType.sing_box : ECoreType.Xray;
         var context = new CoreConfigContext
         {
@@ -96,6 +103,23 @@ public class CoreConfigContextBuilder
 
                 context.AllProxiesMap[$"remark:{ruleItem.OutboundTag}"] = actRuleNode;
             }
+        }
+
+        if (context.IsTunEnabled
+            && context.RunCoreType != ECoreType.sing_box
+            && TunTakeoverPolicy.CanRunSingleCoreSingboxInTun(
+                config,
+                context.Node,
+                context.AllProxiesMap,
+                context.FullConfigTemplate,
+                context.RawDnsItem))
+        {
+            context = context with
+            {
+                RunCoreType = ECoreType.sing_box,
+                FullConfigTemplate = await AppManager.Instance.GetFullConfigTemplateItem(ECoreType.sing_box),
+                RawDnsItem = await AppManager.Instance.GetDNSItem(ECoreType.sing_box),
+            };
         }
 
         if (context.IsTunEnabled && context.AppConfig.TunModeItem.RouteExcludeAddress is { Count: > 0 })
@@ -191,7 +215,7 @@ public class CoreConfigContextBuilder
     {
         var config = nodeContext.AppConfig;
         var node = nodeContext.Node;
-        var coreType = AppManager.Instance.GetCoreType(node, node.ConfigType);
+        var coreType = nodeContext.RunCoreType;
 
         var preSocksItem = ConfigHandler.GetPreSocksItem(config, node, coreType);
         if (preSocksItem != null)

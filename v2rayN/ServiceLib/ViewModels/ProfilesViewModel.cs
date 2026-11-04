@@ -1057,7 +1057,7 @@ public partial class ProfilesViewModel : MyReactiveObject
     {
         var activeIndexId = _config.IndexId;
         var keepCurrentServer = await AppManager.Instance.GetProfileItem(activeIndexId) is not null
-            && _config.SystemProxyItem.SysProxyType == ESysProxyType.ForcedChange;
+            && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config);
 
         await SortServer(nameof(EServerColName.DelayVal), true);
         Logging.SaveLog($"Automatic subscription latency test completed and nodes were sorted in ascending order. Subscription={_config.SubIndexId}.");
@@ -1065,7 +1065,7 @@ public partial class ProfilesViewModel : MyReactiveObject
         if (keepCurrentServer
             && _config.IndexId == activeIndexId
             && await AppManager.Instance.GetProfileItem(activeIndexId) is not null
-            && _config.SystemProxyItem.SysProxyType == ESysProxyType.ForcedChange)
+            && TunTakeoverPolicy.IsEffectiveTakeoverActive(_config))
         {
             Logging.SaveLog($"Keeping the current active server because automatic system proxy is already enabled. Server={activeIndexId}.");
             return;
@@ -1104,7 +1104,7 @@ public partial class ProfilesViewModel : MyReactiveObject
 
         await RefreshServers();
         Reload();
-        AppEvents.SysProxyChangeRequested.Publish(ESysProxyType.ForcedChange);
+        AppEvents.SysProxyChangeRequested.Publish(TunTakeoverPolicy.GetDesiredSysProxyForWorkflow(_config));
     }
 
     private async Task CleanupCloudflareBestNodesSortAndSetFirstServer(IReadOnlyList<ProfileItem> testedProfiles)

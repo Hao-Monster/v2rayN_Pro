@@ -146,14 +146,20 @@ public class TunModeItem
     public bool EnableTun { get; set; }
     public bool AutoRoute { get; set; } = true;
     public bool StrictRoute { get; set; } = true;
-    public string Stack { get; set; }
-    public int Mtu { get; set; }
-    public bool EnableIPv6Address { get; set; }
+    public string Stack { get; set; } = "mixed";
+    public int Mtu { get; set; } = 1500;
+    public bool EnableIPv6Address { get; set; } = true;
     public string IcmpRouting { get; set; }
     public bool EnableLegacyProtect { get; set; } = true;
     public List<string>? RouteExcludeAddress { get; set; }
     public string IPv4Address { get; set; }
     public string IPv6Address { get; set; }
+    public bool AutoFakeIPInTun { get; set; } = true;
+    public bool BlockEncryptedDnsBypass { get; set; } = true;
+    public bool ClearSysProxyWhenTun { get; set; } = true;
+    public bool PreferSingboxInTun { get; set; } = true;
+    public ESysProxyType? LastSysProxyBeforeTun { get; set; }
+    public int TunTakeoverSchemaVersion { get; set; }
 }
 
 [Serializable]
@@ -281,6 +287,7 @@ public class SimpleDNSItem
     public bool? FakeIP { get; set; }
     public bool? GlobalFakeIp { get; set; }
     public string? FakeIPRange { get; set; }
+    public string? FakeIPv6Range { get; set; }
     public bool? BlockBindingQuery { get; set; }
     public bool? BlockAAAAQuery { get; set; }
     public string? DirectDNS { get; set; }

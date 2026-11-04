@@ -1905,4 +1905,16 @@ The "Get Certificate" action may fail if a self-signed certificate is used or if
   <data name="menuAddMasqueServer" xml:space="preserve">
     <value>Add [MASQUE]</value>
   </data>
+  <data name="TbSettingsTunAutoFakeIP" xml:space="preserve">
+    <value>Auto-enable dual-stack FakeIP in TUN mode</value>
+  </data>
+  <data name="TbSettingsTunBlockEncryptedDns" xml:space="preserve">
+    <value>Block app-level encrypted DNS (DoH/DoT) bypass in TUN</value>
+  </data>
+  <data name="TbSettingsTunClearSysProxy" xml:space="preserve">
+    <value>Auto-clear system proxy while TUN is active (restore on exit)</value>
+  </data>
+  <data name="TbSettingsTunPreferSingbox" xml:space="preserve">
+    <value>Prefer single-core sing-box in TUN mode</value>
+  </data>
 </root>
