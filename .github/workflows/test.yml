@@ -1,17 +1,6 @@
 name: custom code test
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'v2rayN/ServiceLib/**'
-      - 'v2rayN/ServiceLib.UdpTest/**'
-      - 'v2rayN/ServiceLib.Tests/**'
-      - 'v2rayN/Directory.Build.*'
-      - 'v2rayN/Directory.Packages.props'
-      - 'global.json'
-      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - custom/main
@@ -25,10 +14,6 @@ on:
 
 permissions:
   contents: read
-
-permissions:
-  checks: write
-  pull-requests: write
 
 jobs:
   test:
@@ -44,4 +29,4 @@ jobs:
       with:
         dotnet-version: '10.x'
     - name: Run ServiceLib tests
-      run: dotnet test --project ./v2rayN/ServiceLib.Tests -c Release -- --report-trx
+      run: dotnet test --project ./v2rayN/ServiceLib.Tests -c Release --report-trx

@@ -667,7 +667,7 @@ public class Global
         { ECoreType.mieru, "enfein/mieru" },
         // The customized GUI must only update from our validated releases.
         // Core binaries continue to use their respective upstream repositories.
-        { ECoreType.v2rayN, "FengHaoyun-MONSTER/v2rayN_Pro" },
+        { ECoreType.v2rayN, "Hao-Monster/v2rayN_Pro" },
     };
 
     public static readonly List<string> OtherGeoUrls =

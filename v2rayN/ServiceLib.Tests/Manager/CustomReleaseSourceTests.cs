@@ -13,9 +13,9 @@ public class CustomReleaseSourceTests
         var app = CoreInfoManager.Instance.GetCoreInfo(ECoreType.v2rayN);
 
         app.Should().NotBeNull();
-        app!.Url.Should().Be("https://github.com/FengHaoyun-MONSTER/v2rayN_Pro/releases");
-        app.DownloadUrlWin64.Should().Contain("FengHaoyun-MONSTER/v2rayN_Pro");
-        app.DownloadUrlOSXArm64.Should().Contain("FengHaoyun-MONSTER/v2rayN_Pro");
+        app!.Url.Should().Be("https://github.com/Hao-Monster/v2rayN_Pro/releases");
+        app.DownloadUrlWin64.Should().Contain("Hao-Monster/v2rayN_Pro");
+        app.DownloadUrlOSXArm64.Should().Contain("Hao-Monster/v2rayN_Pro");
     }
 
     [Test]
